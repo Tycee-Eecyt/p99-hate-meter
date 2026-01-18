@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P99 Aggro Log Reader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="title">
+          <div class="logo">AGRO</div>
+          <div>
+            <h1>P99 Aggro Log Reader</h1>
+            <p>Flux staff clicks + weapon swings (hits/misses)</p>
+          </div>
+        </div>
+        <div class="total">
+          <div class="total-label">Total Hate</div>
+          <div class="total-value" id="totalHate">0</div>
+        </div>
+      </header>
+
+      <section class="controls">
+        <div class="field">
+          <label>Log File</label>
+          <input id="logFile" type="text" placeholder="Select a log file" />
+          <button id="pickFile">Browse</button>
+        </div>
+        <div class="field">
+          <label>Level</label>
+          <input id="level" type="number" value="60" min="1" max="60" />
+          <label>Primary DMG</label>
+          <input id="primaryDmg" type="number" value="14" min="1" />
+          <label>Primary Delay</label>
+          <input id="primaryDelay" type="number" value="24" min="1" />
+          <label>Primary Type</label>
+          <select id="primaryType">
+            <option value="slash">Slashing</option>
+            <option value="pierce">Piercing</option>
+            <option value="crush">Crushing</option>
+            <option value="punch">Punching</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Secondary DMG</label>
+          <input id="secondaryDmg" type="number" value="11" min="1" />
+          <label>Secondary Delay</label>
+          <input id="secondaryDelay" type="number" value="18" min="1" />
+          <label>Secondary Type</label>
+          <select id="secondaryType">
+            <option value="slash">Slashing</option>
+            <option value="pierce" selected>Piercing</option>
+            <option value="crush">Crushing</option>
+            <option value="punch">Punching</option>
+          </select>
+          <label class="checkbox">
+            <input id="singleWeapon" type="checkbox" />
+            Single Weapon Only
+          </label>
+        </div>
+        <div class="field">
+          <label class="checkbox">
+            <input id="overlayEnabled" type="checkbox" />
+            Overlay
+          </label>
+          <button id="start">Start</button>
+          <button id="stop">Stop</button>
+        </div>
+      </section>
+
+      <section class="log">
+        <div class="log-header">
+          <div>Live Events</div>
+          <div id="status">Idle</div>
+        </div>
+        <div class="log-body" id="logBody"></div>
+      </section>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
