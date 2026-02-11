@@ -5,7 +5,7 @@ const path = require("path");
 let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
-let lastOverlayHate = 0;
+let lastOverlayState = { mobName: "", hate: 0 };
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,8 +22,8 @@ function createWindow() {
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 220,
-    height: 90,
+    width: 240,
+    height: 110,
     x: 20,
     y: 20,
     frame: false,
@@ -45,7 +45,7 @@ function createOverlayWindow() {
     overlayWindow = null;
   });
   overlayWindow.once("ready-to-show", () => {
-    if (overlayWindow) overlayWindow.webContents.send("overlay-hate", lastOverlayHate);
+    if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   });
 }
 
@@ -163,7 +163,9 @@ ipcMain.handle("toggle-overlay", (_evt, enabled) => {
   return true;
 });
 
-ipcMain.on("overlay-hate", (_evt, value) => {
-  lastOverlayHate = value;
-  if (overlayWindow) overlayWindow.webContents.send("overlay-hate", value);
+ipcMain.on("overlay-state", (_evt, state) => {
+  if (state && typeof state === "object") {
+    lastOverlayState = { mobName: state.mobName || "", hate: state.hate || 0 };
+  }
+  if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
 });

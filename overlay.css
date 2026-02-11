@@ -34,6 +34,12 @@ body {
   -webkit-app-region: drag;
 }
 
+.overlay-name {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
 .overlay-label {
   font-size: 11px;
   text-transform: uppercase;
