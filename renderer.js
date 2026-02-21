@@ -13,6 +13,7 @@ const MELEE_MISS_SHORT_RE = /\bYou miss\b/i;
 const RIPOSTE_PARRY_RE = /\bYou (riposte|parry)\b/i;
 const TIMESTAMP_RE = /^\[(.+?)\]\s+/;
 const FLUX_LOOKS_UNCOMFORTABLE_RE = /\blooks uncomfortable\.\s*$/i;
+const RAGE_OF_VALLON_RE = /^(.+?) is weakened by the Rage of Vallon\.\s*$/i;
 
 function parseLogTimestamp(line) {
   const match = line.match(TIMESTAMP_RE);
@@ -181,6 +182,12 @@ function spellHateForLine(text) {
   return 0;
 }
 
+function rageOfVallonMobName(text) {
+  const match = text.match(RAGE_OF_VALLON_RE);
+  if (!match) return "";
+  return normalizeMobName(match[1]);
+}
+
 function updateWeaponStats() {
   const level = Number(document.getElementById("level").value);
   updateFightReset();
@@ -217,13 +224,26 @@ function getAttackInfo(text) {
 
 function updateOverlayState() {
   if (!window.agroApi || !window.agroApi.setOverlayState) return;
-  if (!state.activeMobName) {
-    window.agroApi.setOverlayState({ mobName: "", hate: 0, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
-    return;
+  const mobName = state.activeMobName || "";
+  // Overlay "Warrior Hate" should reflect cumulative melee hate, not per-mob hate.
+  window.agroApi.setOverlayState({ mobName, hate: state.total, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
+}
+
+function resetHateTracking(clearLog = false) {
+  state.total = 0;
+  state.fluxCount = 0;
+  state.fluxHate = 0;
+  updateTotal();
+  updateFluxStats();
+  state.mobs.clear();
+  state.activeMobName = "";
+  renderMobList();
+  updateOverlayState();
+  if (clearLog) {
+    logBody.innerHTML = "";
+  } else {
+    addLine("[SYSTEM] Hate reset from overlay", "spell");
   }
-  const entry = state.mobs.get(state.activeMobName);
-  const hate = entry ? entry.hate : 0;
-  window.agroApi.setOverlayState({ mobName: state.activeMobName, hate, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
 }
 
 function getMobEntry(mobName, ts) {
@@ -294,15 +314,33 @@ function handleLine(rawLine) {
 
   const spellHate = spellHateForLine(text);
   if (spellHate > 0) {
-    state.total += spellHate;
     state.fluxCount += 1;
     state.fluxHate += spellHate;
-    updateTotal();
     updateFluxStats();
     updateOverlayState();
     addLine(`[SPELL] ${text} -> +${spellHate} hate`, "spell");
     return;
   }
+
+  const rageMobName = rageOfVallonMobName(text);
+  if (rageMobName || RAGE_OF_VALLON_RE.test(text)) {
+    const rageHate = 500;
+    const rageSpellDamageHate = 100;
+    const totalRageHate = rageHate + rageSpellDamageHate;
+    const mobName = rageMobName || state.activeMobName;
+    state.total += totalRageHate;
+    const entry = getMobEntry(mobName, ts);
+    if (entry) {
+      entry.hate += totalRageHate;
+      state.activeMobName = mobName;
+    }
+    updateTotal();
+    renderMobList();
+    updateOverlayState();
+    addLine(`[PROC] ${text} -> +${totalRageHate} hate (Rage of Vallon: 500 hate + 100 spell damage)`, "spell");
+    return;
+  }
+
   if (WEAR_OFF_LINES[text]) {
     addLine(`[SPELL] ${WEAR_OFF_LINES[text]}`, "spell");
     return;
@@ -399,22 +437,80 @@ document.getElementById("pickFile").addEventListener("click", async () => {
   }
 });
 
+async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}) {
+  if (!window.agroApi || !window.agroApi.loadInventoryWeaponStats) return false;
+  const file = (logFilePath || "").trim();
+  if (!file) {
+    if (!silent) statusEl.textContent = "Select log file first";
+    return false;
+  }
+
+  const result = await window.agroApi.loadInventoryWeaponStats(file);
+  if (!result || !result.ok) {
+    if (!silent) statusEl.textContent = result?.error || "Failed inventory lookup";
+    if (!silent && result?.error) addLine(`[SYSTEM] ${result.error}`, "spell");
+    return false;
+  }
+
+  let updated = false;
+  if (result.primary && result.primary.foundStats && !result.primary.isEmpty) {
+    document.getElementById("primaryDmg").value = String(result.primary.damage);
+    document.getElementById("primaryDelay").value = String(result.primary.delay);
+    updated = true;
+  }
+
+  if (result.secondary && result.secondary.foundStats) {
+    if (result.secondary.isEmpty) {
+      document.getElementById("singleWeapon").checked = true;
+      if (!silent) addLine("[SYSTEM] Secondary slot is Empty in inventory. Enabled Single Weapon Only.", "spell");
+      updated = true;
+    } else {
+      document.getElementById("secondaryDmg").value = String(result.secondary.damage);
+      document.getElementById("secondaryDelay").value = String(result.secondary.delay);
+      document.getElementById("singleWeapon").checked = false;
+      updated = true;
+    }
+  }
+
+  if (!silent) {
+    if (result.inventoryPath) addLine(`[SYSTEM] Inventory loaded: ${result.inventoryPath}`, "spell");
+    if (result.primary && result.primary.foundStats && !result.primary.isEmpty) {
+      addLine(`[SYSTEM] Primary ${result.primary.name}: ${result.primary.damage}/${result.primary.delay}`, "spell");
+    } else if (result.primary && !result.primary.isEmpty) {
+      addLine(`[SYSTEM] Primary ${result.primary.name}: missing DMG/Delay lookup`, "spell");
+    }
+
+    if (result.secondary && result.secondary.foundStats && !result.secondary.isEmpty) {
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: ${result.secondary.damage}/${result.secondary.delay}`, "spell");
+    } else if (result.secondary && !result.secondary.isEmpty) {
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: missing DMG/Delay lookup`, "spell");
+    }
+  }
+
+  if (!updated && !silent) statusEl.textContent = "No weapon stats updated";
+  if (updated) {
+    updateWeaponStats();
+    saveSettings();
+    if (!silent) statusEl.textContent = "Inventory weapon stats loaded";
+  }
+  return updated;
+}
+
+const loadInventoryBtn = document.getElementById("loadInventory");
+if (loadInventoryBtn) {
+  loadInventoryBtn.addEventListener("click", async () => {
+    const file = document.getElementById("logFile").value.trim();
+    await loadWeaponStatsFromInventory(file, { silent: false });
+  });
+}
+
 async function startReading(file, fromStart = false, statusText = "Reading") {
   if (!file) {
     statusEl.textContent = "Missing log file";
     return false;
   }
 
-  state.total = 0;
-  state.fluxCount = 0;
-  state.fluxHate = 0;
-  updateTotal();
-  updateFluxStats();
-  state.mobs.clear();
-  state.activeMobName = "";
-  renderMobList();
-  updateOverlayState();
-  logBody.innerHTML = "";
+  resetHateTracking(true);
   statusEl.textContent = statusText;
   const started = await window.agroApi.startTail(file, fromStart);
   if (!started) {
@@ -426,8 +522,9 @@ async function startReading(file, fromStart = false, statusText = "Reading") {
 }
 
 document.getElementById("start").addEventListener("click", async () => {
-  updateWeaponStats();
   const file = document.getElementById("logFile").value.trim();
+  await loadWeaponStatsFromInventory(file, { silent: true });
+  updateWeaponStats();
   await startReading(file, false, "Reading");
 });
 
@@ -437,6 +534,11 @@ document.getElementById("stop").addEventListener("click", async () => {
 });
 
 window.agroApi.onLogLine((line) => handleLine(line));
+if (window.agroApi.onResetHate) {
+  window.agroApi.onResetHate(() => {
+    resetHateTracking(false);
+  });
+}
 
 loadSettings();
 updateFightReset();
@@ -471,7 +573,6 @@ renderMobList();
 setInterval(renderMobList, 1000);
 
 async function autoStartLogReading() {
-  updateWeaponStats();
   const logFileInput = document.getElementById("logFile");
   let file = logFileInput.value.trim();
 
@@ -485,6 +586,8 @@ async function autoStartLogReading() {
   }
 
   if (!file) return;
+  await loadWeaponStatsFromInventory(file, { silent: true });
+  updateWeaponStats();
   await startReading(file, false, "Auto-reading");
 }
 

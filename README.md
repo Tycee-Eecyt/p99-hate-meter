@@ -18,3 +18,4 @@ npm start
 ## Notes
 - Use "Find Latest" to auto-select the newest EQ log in the folder.
 - "Read From Start" will parse the entire file; otherwise it tails live.
+- Use "Load Inventory" (or Start/Auto-start) to read `CharacterName-Inventory.txt` from your EverQuest base folder and auto-fill Primary/Secondary DMG+Delay.
