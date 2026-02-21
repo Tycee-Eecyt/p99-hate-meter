@@ -17,14 +17,35 @@
           </div>
         </div>
         <div class="header-stats">
-          <div class="total">
-            <div class="total-label">Warrior Hate</div>
-            <div class="total-value" id="totalHate">0</div>
+          <div class="pair-stats">
+            <div class="pair-grid">
+              <div class="pair-cell">
+                <div class="total-label">Warrior Hate</div>
+                <div class="total-value" id="totalHate">0</div>
+              </div>
+              <div class="pair-cell">
+                <div class="total-label">Wizard Hate</div>
+                <div class="total-value" id="fluxHate">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="pair-stats">
+            <div class="pair-grid">
+              <div class="pair-cell">
+                <div class="total-label">Warrior Procs</div>
+                <div class="total-value" id="procCount">0</div>
+                <div class="flux-hate">Proc Hate: <span id="procHate">0</span></div>
+              </div>
+              <div class="pair-cell">
+                <div class="total-label">Flux Triggers</div>
+                <div class="total-value" id="fluxCount">0</div>
+              </div>
+            </div>
           </div>
           <div class="flux-stats">
-            <div class="total-label">Flux Triggers</div>
-            <div class="total-value" id="fluxCount">0</div>
-            <div class="flux-hate">Flux Hate: <span id="fluxHate">0</span></div>
+            <div class="total-label">Fight Reset Countdown</div>
+            <div class="total-value total-value-small" id="fightResetCountdown">Ready</div>
+            <div class="flux-hate">Resets after inactivity</div>
           </div>
         </div>
       </header>

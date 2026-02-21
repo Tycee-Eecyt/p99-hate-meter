@@ -7,7 +7,7 @@ const path = require("path");
 let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0 };
+let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0 };
 const itemStatsCache = new Map();
 
 function createWindow() {
@@ -26,7 +26,7 @@ function createWindow() {
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
     width: 280,
-    height: 190,
+    height: 240,
     x: 20,
     y: 20,
     frame: false,
@@ -409,6 +409,9 @@ ipcMain.on("overlay-state", (_evt, state) => {
       hate: state.hate || 0,
       fluxCount: state.fluxCount || 0,
       fluxHate: state.fluxHate || 0,
+      procCount: state.procCount || 0,
+      procHate: state.procHate || 0,
+      resetCountdown: state.resetCountdown || 0,
     };
   }
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
@@ -416,6 +419,6 @@ ipcMain.on("overlay-state", (_evt, state) => {
 
 ipcMain.on("request-reset-hate", () => {
   if (mainWindow) mainWindow.webContents.send("reset-hate");
-  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0 };
+  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0 };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
 });
