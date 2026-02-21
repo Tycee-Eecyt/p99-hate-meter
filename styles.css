@@ -41,6 +41,12 @@ body {
   margin-bottom: 24px;
 }
 
+.header-stats {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
 .title {
   display: flex;
   gap: 18px;
@@ -86,6 +92,20 @@ h1 {
 .total-value {
   font-size: 28px;
   font-weight: 700;
+}
+
+.flux-stats {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 18px;
+  min-width: 190px;
+}
+
+.flux-hate {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .controls {
@@ -248,8 +268,17 @@ button#stop {
     gap: 16px;
   }
 
+  .header-stats {
+    width: 100%;
+    flex-direction: column;
+  }
+
   .total {
     width: 100%;
     text-align: left;
+  }
+
+  .flux-stats {
+    width: 100%;
   }
 }

@@ -1,11 +1,12 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0 };
+let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0 };
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,8 +23,8 @@ function createWindow() {
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 240,
-    height: 110,
+    width: 280,
+    height: 170,
     x: 20,
     y: 20,
     frame: false,
@@ -71,6 +72,39 @@ function findLatestLog(logDir) {
   if (!files.length) return "";
   files.sort((a, b) => b.mtime - a.mtime);
   return files[0].path;
+}
+
+function findDefaultLatestLog() {
+  const home = os.homedir();
+  const candidateDirs = [
+    path.join(home, "EverQuest", "Logs"),
+    path.join(home, "Desktop", "EverQuest", "Logs"),
+    path.join(home, "OneDrive", "Desktop", "EverQuest", "Logs"),
+    path.join(home, "Documents", "EverQuest", "Logs"),
+    path.join(home, "Games", "EverQuest", "Logs"),
+  ];
+
+  let latestPath = "";
+  let latestMtime = -1;
+
+  for (const dir of candidateDirs) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".txt")) continue;
+        const full = path.join(dir, entry.name);
+        const stat = fs.statSync(full);
+        if (stat.mtimeMs > latestMtime) {
+          latestMtime = stat.mtimeMs;
+          latestPath = full;
+        }
+      }
+    } catch {
+      // Ignore missing/unreadable candidate directories.
+    }
+  }
+
+  return latestPath;
 }
 
 function startTail(filePath, fromStart, onLine) {
@@ -135,6 +169,14 @@ ipcMain.handle("find-latest-log", (_evt, logDir) => {
   }
 });
 
+ipcMain.handle("find-default-latest-log", () => {
+  try {
+    return findDefaultLatestLog();
+  } catch {
+    return "";
+  }
+});
+
 ipcMain.handle("start-tail", (_evt, filePath, fromStart) => {
   if (stopTailFn) {
     stopTailFn();
@@ -165,7 +207,12 @@ ipcMain.handle("toggle-overlay", (_evt, enabled) => {
 
 ipcMain.on("overlay-state", (_evt, state) => {
   if (state && typeof state === "object") {
-    lastOverlayState = { mobName: state.mobName || "", hate: state.hate || 0 };
+    lastOverlayState = {
+      mobName: state.mobName || "",
+      hate: state.hate || 0,
+      fluxCount: state.fluxCount || 0,
+      fluxHate: state.fluxHate || 0,
+    };
   }
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
 });

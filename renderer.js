@@ -12,6 +12,7 @@ const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?!\b
 const MELEE_MISS_SHORT_RE = /\bYou miss\b/i;
 const RIPOSTE_PARRY_RE = /\bYou (riposte|parry)\b/i;
 const TIMESTAMP_RE = /^\[(.+?)\]\s+/;
+const FLUX_LOOKS_UNCOMFORTABLE_RE = /\blooks uncomfortable\.\s*$/i;
 
 function parseLogTimestamp(line) {
   const match = line.match(TIMESTAMP_RE);
@@ -87,6 +88,8 @@ class SwingHandTracker {
 
 const state = {
   total: 0,
+  fluxCount: 0,
+  fluxHate: 0,
   primaryHate: 0,
   secondaryHate: 0,
   primaryType: "slash",
@@ -98,6 +101,8 @@ const state = {
 };
 
 const totalHate = document.getElementById("totalHate");
+const fluxCountEl = document.getElementById("fluxCount");
+const fluxHateEl = document.getElementById("fluxHate");
 const logBody = document.getElementById("logBody");
 const statusEl = document.getElementById("status");
 const mobHateList = document.getElementById("mobHateList");
@@ -165,6 +170,17 @@ function updateTotal() {
   totalHate.textContent = state.total.toString();
 }
 
+function updateFluxStats() {
+  if (fluxCountEl) fluxCountEl.textContent = state.fluxCount.toString();
+  if (fluxHateEl) fluxHateEl.textContent = state.fluxHate.toString();
+}
+
+function spellHateForLine(text) {
+  if (SPELL_HATE[text]) return SPELL_HATE[text];
+  if (FLUX_LOOKS_UNCOMFORTABLE_RE.test(text)) return 50;
+  return 0;
+}
+
 function updateWeaponStats() {
   const level = Number(document.getElementById("level").value);
   updateFightReset();
@@ -202,12 +218,12 @@ function getAttackInfo(text) {
 function updateOverlayState() {
   if (!window.agroApi || !window.agroApi.setOverlayState) return;
   if (!state.activeMobName) {
-    window.agroApi.setOverlayState({ mobName: "", hate: 0 });
+    window.agroApi.setOverlayState({ mobName: "", hate: 0, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
     return;
   }
   const entry = state.mobs.get(state.activeMobName);
   const hate = entry ? entry.hate : 0;
-  window.agroApi.setOverlayState({ mobName: state.activeMobName, hate });
+  window.agroApi.setOverlayState({ mobName: state.activeMobName, hate, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
 }
 
 function getMobEntry(mobName, ts) {
@@ -276,10 +292,15 @@ function renderMobList() {
 function handleLine(rawLine) {
   const { ts, text } = parseLogTimestamp(rawLine);
 
-  if (SPELL_HATE[text]) {
-    state.total += SPELL_HATE[text];
+  const spellHate = spellHateForLine(text);
+  if (spellHate > 0) {
+    state.total += spellHate;
+    state.fluxCount += 1;
+    state.fluxHate += spellHate;
     updateTotal();
-    addLine(`[SPELL] ${text} -> +${SPELL_HATE[text]} hate`, "spell");
+    updateFluxStats();
+    updateOverlayState();
+    addLine(`[SPELL] ${text} -> +${spellHate} hate`, "spell");
     return;
   }
   if (WEAR_OFF_LINES[text]) {
@@ -378,25 +399,36 @@ document.getElementById("pickFile").addEventListener("click", async () => {
   }
 });
 
-
-document.getElementById("start").addEventListener("click", async () => {
-  updateWeaponStats();
-  const file = document.getElementById("logFile").value.trim();
-  const fromStart = false;
+async function startReading(file, fromStart = false, statusText = "Reading") {
   if (!file) {
     statusEl.textContent = "Missing log file";
-    return;
+    return false;
   }
+
   state.total = 0;
+  state.fluxCount = 0;
+  state.fluxHate = 0;
   updateTotal();
+  updateFluxStats();
   state.mobs.clear();
   state.activeMobName = "";
   renderMobList();
   updateOverlayState();
   logBody.innerHTML = "";
-  statusEl.textContent = "Reading";
-  await window.agroApi.startTail(file, fromStart);
+  statusEl.textContent = statusText;
+  const started = await window.agroApi.startTail(file, fromStart);
+  if (!started) {
+    statusEl.textContent = "Failed to read log";
+    return false;
+  }
   saveSettings();
+  return true;
+}
+
+document.getElementById("start").addEventListener("click", async () => {
+  updateWeaponStats();
+  const file = document.getElementById("logFile").value.trim();
+  await startReading(file, false, "Reading");
 });
 
 document.getElementById("stop").addEventListener("click", async () => {
@@ -408,6 +440,7 @@ window.agroApi.onLogLine((line) => handleLine(line));
 
 loadSettings();
 updateFightReset();
+updateFluxStats();
 ["logFile", "level", "fightResetSeconds", "primaryDmg", "primaryDelay", "primaryType", "secondaryDmg", "secondaryDelay", "secondaryType", "singleWeapon", "overlayEnabled"].forEach(
   (id) => {
     const el = document.getElementById(id);
@@ -436,3 +469,23 @@ if (fightResetInput) {
 
 renderMobList();
 setInterval(renderMobList, 1000);
+
+async function autoStartLogReading() {
+  updateWeaponStats();
+  const logFileInput = document.getElementById("logFile");
+  let file = logFileInput.value.trim();
+
+  if (!file && window.agroApi.findDefaultLatestLog) {
+    const found = await window.agroApi.findDefaultLatestLog();
+    if (found) {
+      file = found;
+      logFileInput.value = file;
+      saveSettings();
+    }
+  }
+
+  if (!file) return;
+  await startReading(file, false, "Auto-reading");
+}
+
+autoStartLogReading();

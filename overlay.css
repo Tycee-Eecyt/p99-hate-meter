@@ -28,7 +28,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 12px 16px;
-  min-width: 200px;
+  min-width: 260px;
   text-align: right;
   user-select: none;
   -webkit-app-region: drag;
@@ -48,6 +48,25 @@ body {
 }
 
 .overlay-value {
-  font-size: 30px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.overlay-stat {
+  min-width: 0;
+}
+
+.overlay-sub-label {
+  margin-top: 4px;
+}
+
+.overlay-sub-value {
+  font-size: 20px;
   font-weight: 700;
 }
