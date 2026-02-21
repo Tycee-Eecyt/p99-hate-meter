@@ -8,7 +8,7 @@ let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+let lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
 const itemStatsCache = new Map();
 
 function createWindow() {
@@ -26,14 +26,16 @@ function createWindow() {
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 280,
-    height: 240,
+    width: 320,
+    height: 320,
     x: 20,
     y: 20,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
+    minWidth: 250,
+    minHeight: 240,
     movable: true,
     skipTaskbar: true,
     webPreferences: {
@@ -447,6 +449,7 @@ ipcMain.on("overlay-state", (_evt, state) => {
     lastOverlayState = {
       mobName: state.mobName || "",
       hate: state.hate || 0,
+      damage: state.damage || 0,
       fluxCount: state.fluxCount || 0,
       fluxHate: state.fluxHate || 0,
       procCount: state.procCount || 0,
@@ -461,7 +464,11 @@ ipcMain.on("overlay-state", (_evt, state) => {
 
 ipcMain.on("request-reset-hate", () => {
   if (mainWindow) mainWindow.webContents.send("reset-hate");
-  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+  lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
+});
+
+ipcMain.on("request-load-inventory", () => {
+  if (mainWindow) mainWindow.webContents.send("request-load-inventory");
 });

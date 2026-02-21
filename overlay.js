@@ -2,6 +2,7 @@ const overlayValue = document.getElementById("overlayHate");
 const overlayName = document.getElementById("overlayName");
 const overlayFluxCount = document.getElementById("overlayFluxCount");
 const overlayFluxHate = document.getElementById("overlayFluxHate");
+const overlayDamage = document.getElementById("overlayDamage");
 const overlayProcCount = document.getElementById("overlayProcCount");
 const overlayProcHate = document.getElementById("overlayProcHate");
 const overlayResetCountdown = document.getElementById("overlayResetCountdown");
@@ -22,6 +23,7 @@ if (window.agroApi && window.agroApi.onOverlayState) {
     if (!state) return;
     overlayName.textContent = state.mobName ? state.mobName : "No Target";
     overlayValue.textContent = String(state.hate || 0);
+    overlayDamage.textContent = String(state.damage || 0);
     overlayFluxCount.textContent = String(state.fluxCount || 0);
     overlayFluxHate.textContent = String(state.fluxHate || 0);
     overlayProcCount.textContent = String(state.procCount || 0);

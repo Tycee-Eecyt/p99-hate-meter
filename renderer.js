@@ -8,7 +8,7 @@ const WEAR_OFF_LINES = {
 };
 
 const MELEE_HIT_RE = /\bYou (slash|pierce|crush|punch) (.+?) for (\d+) points of damage\./i;
-const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?!\b/i;
+const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?[.!]?\s*$/i;
 const MELEE_MISS_SHORT_RE = /\bYou miss\b/i;
 const RIPOSTE_PARRY_RE = /\bYou (riposte|parry)\b/i;
 const TIMESTAMP_RE = /^\[(.+?)\]\s+/;
@@ -89,6 +89,7 @@ class SwingHandTracker {
 
 const state = {
   warriorHate: 0,
+  warriorDamage: 0,
   fluxCount: 0,
   fluxHate: 0,
   procCount: 0,
@@ -255,10 +256,10 @@ function normalizeMobName(name) {
 
 function getAttackInfo(text) {
   let match = text.match(MELEE_HIT_RE);
-  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]) };
+  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]), damage: Number(match[3]) || 0 };
   match = text.match(MELEE_MISS_RE);
-  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]) };
-  return { type: "", mobName: "" };
+  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]), damage: 0 };
+  return { type: "", mobName: "", damage: 0 };
 }
 
 function updateOverlayState() {
@@ -267,6 +268,7 @@ function updateOverlayState() {
   window.agroApi.setOverlayState({
     mobName,
     hate: state.warriorHate,
+    damage: state.warriorDamage,
     fluxCount: state.fluxCount,
     fluxHate: state.fluxHate,
     procCount: state.procCount,
@@ -278,6 +280,7 @@ function updateOverlayState() {
 
 function resetHateTracking(clearLog = false, reason = "manual") {
   state.warriorHate = 0;
+  state.warriorDamage = 0;
   state.fluxCount = 0;
   state.fluxHate = 0;
   state.procCount = 0;
@@ -415,6 +418,10 @@ function handleLine(rawLine) {
     const singleWeapon = document.getElementById("singleWeapon").checked;
     const info = getAttackInfo(text);
     const attackType = info.type;
+    const hitDamage = info.damage || 0;
+    if (hitDamage > 0) {
+      state.warriorDamage += hitDamage;
+    }
     let mobName = info.mobName;
     if (!mobName && state.activeMobName) mobName = state.activeMobName;
     const isUnknownMiss = !attackType && MELEE_MISS_SHORT_RE.test(text);
@@ -606,6 +613,12 @@ window.agroApi.onLogLine((line) => handleLine(line));
 if (window.agroApi.onResetHate) {
   window.agroApi.onResetHate(() => {
     resetHateTracking(false, "overlay");
+  });
+}
+if (window.agroApi.onRequestLoadInventory) {
+  window.agroApi.onRequestLoadInventory(async () => {
+    const file = document.getElementById("logFile").value.trim();
+    await loadWeaponStatsFromInventory(file, { silent: false });
   });
 }
 

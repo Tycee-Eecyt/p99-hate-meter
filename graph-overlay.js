@@ -2,6 +2,8 @@ const targetEl = document.getElementById("graphTarget");
 const warriorEl = document.getElementById("graphWarrior");
 const wizardEl = document.getElementById("graphWizard");
 const intersectionInfoEl = document.getElementById("intersectionInfo");
+const graphResetBtn = document.getElementById("graphResetBtn");
+const graphLoadInventoryBtn = document.getElementById("graphLoadInventoryBtn");
 const canvas = document.getElementById("hateGraph");
 const ctx = canvas.getContext("2d");
 
@@ -207,3 +209,15 @@ if (window.agroApi && window.agroApi.onOverlayState) {
 window.addEventListener("resize", () => {
   drawGraph(Date.now());
 });
+
+if (graphResetBtn && window.agroApi && window.agroApi.requestResetHate) {
+  graphResetBtn.addEventListener("click", () => {
+    window.agroApi.requestResetHate();
+  });
+}
+
+if (graphLoadInventoryBtn && window.agroApi && window.agroApi.requestLoadInventory) {
+  graphLoadInventoryBtn.addEventListener("click", () => {
+    window.agroApi.requestLoadInventory();
+  });
+}
