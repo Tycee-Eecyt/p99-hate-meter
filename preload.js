@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("agroApi", {
   stopTail: () => ipcRenderer.invoke("stop-tail"),
   onLogLine: (handler) => ipcRenderer.on("log-line", (_evt, line) => handler(line)),
   toggleOverlay: (enabled) => ipcRenderer.invoke("toggle-overlay", enabled),
+  toggleGraphOverlay: (enabled) => ipcRenderer.invoke("toggle-graph-overlay", enabled),
   setOverlayState: (state) => ipcRenderer.send("overlay-state", state),
   onOverlayState: (handler) => ipcRenderer.on("overlay-state", (_evt, state) => handler(state)),
   requestResetHate: () => ipcRenderer.send("request-reset-hate"),
