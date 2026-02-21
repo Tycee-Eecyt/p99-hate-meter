@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const fs = require("fs");
+const https = require("https");
 const os = require("os");
 const path = require("path");
 
@@ -7,6 +8,7 @@ let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
 let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0 };
+const itemStatsCache = new Map();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -24,7 +26,7 @@ function createWindow() {
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
     width: 280,
-    height: 170,
+    height: 190,
     x: 20,
     y: 20,
     frame: false,
@@ -75,14 +77,7 @@ function findLatestLog(logDir) {
 }
 
 function findDefaultLatestLog() {
-  const home = os.homedir();
-  const candidateDirs = [
-    path.join(home, "EverQuest", "Logs"),
-    path.join(home, "Desktop", "EverQuest", "Logs"),
-    path.join(home, "OneDrive", "Desktop", "EverQuest", "Logs"),
-    path.join(home, "Documents", "EverQuest", "Logs"),
-    path.join(home, "Games", "EverQuest", "Logs"),
-  ];
+  const candidateDirs = getDefaultEverQuestBaseDirs().map((dir) => path.join(dir, "Logs"));
 
   let latestPath = "";
   let latestMtime = -1;
@@ -105,6 +100,200 @@ function findDefaultLatestLog() {
   }
 
   return latestPath;
+}
+
+function getDefaultEverQuestBaseDirs() {
+  const home = os.homedir();
+  return [
+    path.join(home, "EverQuest"),
+    path.join(home, "Desktop", "EverQuest"),
+    path.join(home, "OneDrive", "Desktop", "EverQuest"),
+    path.join(home, "Documents", "EverQuest"),
+    path.join(home, "Games", "EverQuest"),
+  ];
+}
+
+function extractCharacterNameFromLogPath(logFilePath) {
+  const name = path.basename(logFilePath || "");
+  const match = name.match(/^eqlog_([^_]+)_/i);
+  return match ? match[1] : "";
+}
+
+function resolveEverQuestBaseFromLogPath(logFilePath) {
+  if (!logFilePath) return "";
+  const logDir = path.dirname(logFilePath);
+  if (path.basename(logDir).toLowerCase() === "logs") {
+    return path.dirname(logDir);
+  }
+  return logDir;
+}
+
+function findInventoryFileInBase(eqBaseDir, characterName) {
+  try {
+    const targetName = `${(characterName || "").toLowerCase()}-inventory.txt`;
+    const entries = fs.readdirSync(eqBaseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const lowerName = entry.name.toLowerCase();
+      if (!lowerName.endsWith("-inventory.txt")) continue;
+      if (targetName && lowerName === targetName) {
+        return path.join(eqBaseDir, entry.name);
+      }
+    }
+    if (!targetName) {
+      const fallback = entries.find((entry) => entry.isFile() && entry.name.toLowerCase().endsWith("-inventory.txt"));
+      if (fallback) return path.join(eqBaseDir, fallback.name);
+    }
+  } catch {
+    // Ignore unreadable directories.
+  }
+  return "";
+}
+
+function resolveInventoryFilePath(logFilePath) {
+  const characterName = extractCharacterNameFromLogPath(logFilePath);
+  const candidates = [];
+  const fromLog = resolveEverQuestBaseFromLogPath(logFilePath);
+  if (fromLog) candidates.push(fromLog);
+  for (const dir of getDefaultEverQuestBaseDirs()) {
+    if (!candidates.includes(dir)) candidates.push(dir);
+  }
+
+  for (const baseDir of candidates) {
+    const inventoryPath = findInventoryFileInBase(baseDir, characterName);
+    if (inventoryPath) return { inventoryPath, characterName, baseDir };
+  }
+
+  return { inventoryPath: "", characterName, baseDir: "" };
+}
+
+function parseInventoryWeaponRows(content) {
+  const rows = content.split(/\r?\n/);
+  const result = { primary: null, secondary: null };
+
+  for (const row of rows) {
+    if (!row || /^Location\t/i.test(row)) continue;
+    const cols = row.split("\t");
+    if (cols.length < 5) continue;
+    const slot = cols[0].trim().toLowerCase();
+    if (slot !== "primary" && slot !== "secondary") continue;
+    const item = {
+      slot,
+      name: cols[1].trim(),
+      id: Number(cols[2]),
+    };
+    result[slot] = item;
+  }
+
+  return result;
+}
+
+function fetchText(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        const status = res.statusCode || 0;
+        if (status >= 300 && status < 400 && res.headers.location && redirectCount < 5) {
+          const nextUrl = new URL(res.headers.location, url).toString();
+          res.resume();
+          resolve(fetchText(nextUrl, redirectCount + 1));
+          return;
+        }
+        if (status < 200 || status >= 300) {
+          res.resume();
+          reject(new Error(`HTTP ${status}`));
+          return;
+        }
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => resolve(data));
+      })
+      .on("error", (err) => reject(err));
+  });
+}
+
+async function fetchItemStatsFromWiki(itemName) {
+  const cacheKey = (itemName || "").toLowerCase();
+  if (!cacheKey) return null;
+  if (itemStatsCache.has(cacheKey)) return itemStatsCache.get(cacheKey);
+
+  const slug = encodeURIComponent(itemName.replace(/\s+/g, "_"));
+  const url = `https://wiki.project1999.com/${slug}`;
+  const html = await fetchText(url);
+  const delayMatch = html.match(/Atk Delay:\s*(\d+)/i);
+  const dmgMatch = html.match(/\bDMG:\s*(\d+)/i);
+
+  const stats = delayMatch && dmgMatch ? { damage: Number(dmgMatch[1]), delay: Number(delayMatch[1]), sourceUrl: url } : null;
+  itemStatsCache.set(cacheKey, stats);
+  return stats;
+}
+
+async function buildWeaponStatsFromInventory(logFilePath) {
+  const resolved = resolveInventoryFilePath(logFilePath);
+  if (!resolved.inventoryPath) {
+    return {
+      ok: false,
+      error: "Could not find character inventory file in your EverQuest folder.",
+      characterName: resolved.characterName,
+      inventoryPath: "",
+    };
+  }
+
+  let content = "";
+  try {
+    content = fs.readFileSync(resolved.inventoryPath, "latin1");
+  } catch {
+    return {
+      ok: false,
+      error: "Found inventory file, but failed to read it.",
+      characterName: resolved.characterName,
+      inventoryPath: resolved.inventoryPath,
+    };
+  }
+
+  const parsed = parseInventoryWeaponRows(content);
+  if (!parsed.primary && !parsed.secondary) {
+    return {
+      ok: false,
+      error: "Inventory file did not contain Primary/Secondary rows.",
+      characterName: resolved.characterName,
+      inventoryPath: resolved.inventoryPath,
+    };
+  }
+
+  async function resolveSlot(slotData) {
+    if (!slotData) return null;
+    if (!slotData.name || slotData.name.toLowerCase() === "empty" || !slotData.id) {
+      return {
+        ...slotData,
+        isEmpty: true,
+        damage: 0,
+        delay: 0,
+        foundStats: true,
+      };
+    }
+    try {
+      const stats = await fetchItemStatsFromWiki(slotData.name);
+      if (!stats) return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
+      return { ...slotData, isEmpty: false, foundStats: true, damage: stats.damage, delay: stats.delay, sourceUrl: stats.sourceUrl };
+    } catch {
+      return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
+    }
+  }
+
+  const primary = await resolveSlot(parsed.primary);
+  const secondary = await resolveSlot(parsed.secondary);
+
+  return {
+    ok: true,
+    characterName: resolved.characterName,
+    inventoryPath: resolved.inventoryPath,
+    primary,
+    secondary,
+  };
 }
 
 function startTail(filePath, fromStart, onLine) {
@@ -177,6 +366,14 @@ ipcMain.handle("find-default-latest-log", () => {
   }
 });
 
+ipcMain.handle("load-inventory-weapon-stats", async (_evt, logFilePath) => {
+  try {
+    return await buildWeaponStatsFromInventory(logFilePath);
+  } catch {
+    return { ok: false, error: "Failed to load inventory weapon stats." };
+  }
+});
+
 ipcMain.handle("start-tail", (_evt, filePath, fromStart) => {
   if (stopTailFn) {
     stopTailFn();
@@ -214,5 +411,11 @@ ipcMain.on("overlay-state", (_evt, state) => {
       fluxHate: state.fluxHate || 0,
     };
   }
+  if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
+});
+
+ipcMain.on("request-reset-hate", () => {
+  if (mainWindow) mainWindow.webContents.send("reset-hate");
+  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0 };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
 });
