@@ -36,7 +36,6 @@ if (window.agroApi && window.agroApi.onOverlayState) {
   });
 }
 
-<<<<<<< HEAD
 setInterval(renderOverlayCountdown, 250);
 
 if (overlayResetBtn && window.agroApi && window.agroApi.requestResetHate) {
