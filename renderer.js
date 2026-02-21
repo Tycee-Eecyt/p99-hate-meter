@@ -88,9 +88,11 @@ class SwingHandTracker {
 }
 
 const state = {
-  total: 0,
+  warriorHate: 0,
   fluxCount: 0,
   fluxHate: 0,
+  procCount: 0,
+  procHate: 0,
   primaryHate: 0,
   secondaryHate: 0,
   primaryType: "slash",
@@ -99,11 +101,15 @@ const state = {
   mobs: new Map(),
   activeMobName: "",
   fightResetSeconds: 30,
+  lastCombatAt: null,
 };
 
 const totalHate = document.getElementById("totalHate");
 const fluxCountEl = document.getElementById("fluxCount");
 const fluxHateEl = document.getElementById("fluxHate");
+const procCountEl = document.getElementById("procCount");
+const procHateEl = document.getElementById("procHate");
+const fightResetCountdownEl = document.getElementById("fightResetCountdown");
 const logBody = document.getElementById("logBody");
 const statusEl = document.getElementById("status");
 const mobHateList = document.getElementById("mobHateList");
@@ -168,12 +174,36 @@ function addLine(text, kind) {
 }
 
 function updateTotal() {
-  totalHate.textContent = state.total.toString();
+  totalHate.textContent = state.warriorHate.toString();
 }
 
 function updateFluxStats() {
   if (fluxCountEl) fluxCountEl.textContent = state.fluxCount.toString();
   if (fluxHateEl) fluxHateEl.textContent = state.fluxHate.toString();
+}
+
+function updateProcStats() {
+  if (procCountEl) procCountEl.textContent = state.procCount.toString();
+  if (procHateEl) procHateEl.textContent = state.procHate.toString();
+}
+
+function getFightResetRemainingSeconds() {
+  if (!state.lastCombatAt) return 0;
+  const resetMs = state.fightResetSeconds * 1000;
+  if (resetMs <= 0) return 0;
+  const elapsedMs = Date.now() - state.lastCombatAt.getTime();
+  return Math.max(0, Math.ceil((resetMs - elapsedMs) / 1000));
+}
+
+function updateFightResetCountdown() {
+  if (!fightResetCountdownEl) return;
+  const remaining = getFightResetRemainingSeconds();
+  fightResetCountdownEl.textContent = remaining > 0 ? `${remaining}s` : "Ready";
+}
+
+function markCombatActivity(ts) {
+  state.lastCombatAt = ts || new Date();
+  updateFightResetCountdown();
 }
 
 function spellHateForLine(text) {
@@ -225,25 +255,48 @@ function getAttackInfo(text) {
 function updateOverlayState() {
   if (!window.agroApi || !window.agroApi.setOverlayState) return;
   const mobName = state.activeMobName || "";
-  // Overlay "Warrior Hate" should reflect cumulative melee hate, not per-mob hate.
-  window.agroApi.setOverlayState({ mobName, hate: state.total, fluxCount: state.fluxCount, fluxHate: state.fluxHate });
+  window.agroApi.setOverlayState({
+    mobName,
+    hate: state.warriorHate,
+    fluxCount: state.fluxCount,
+    fluxHate: state.fluxHate,
+    procCount: state.procCount,
+    procHate: state.procHate,
+    resetCountdown: getFightResetRemainingSeconds(),
+  });
 }
 
-function resetHateTracking(clearLog = false) {
-  state.total = 0;
+function resetHateTracking(clearLog = false, reason = "manual") {
+  state.warriorHate = 0;
   state.fluxCount = 0;
   state.fluxHate = 0;
+  state.procCount = 0;
+  state.procHate = 0;
+  state.lastCombatAt = null;
   updateTotal();
   updateFluxStats();
+  updateProcStats();
+  updateFightResetCountdown();
   state.mobs.clear();
   state.activeMobName = "";
   renderMobList();
   updateOverlayState();
   if (clearLog) {
     logBody.innerHTML = "";
-  } else {
+  } else if (reason === "overlay") {
     addLine("[SYSTEM] Hate reset from overlay", "spell");
+  } else if (reason === "inactivity") {
+    addLine(`[SYSTEM] Fight reset after ${state.fightResetSeconds}s inactivity`, "spell");
   }
+}
+
+function maybeResetFightOnInactivity() {
+  if (!state.lastCombatAt) return;
+  const resetMs = state.fightResetSeconds * 1000;
+  if (resetMs <= 0) return;
+  const elapsedMs = Date.now() - state.lastCombatAt.getTime();
+  if (elapsedMs < resetMs) return;
+  resetHateTracking(false, "inactivity");
 }
 
 function getMobEntry(mobName, ts) {
@@ -328,13 +381,14 @@ function handleLine(rawLine) {
     const rageSpellDamageHate = 100;
     const totalRageHate = rageHate + rageSpellDamageHate;
     const mobName = rageMobName || state.activeMobName;
-    state.total += totalRageHate;
+    state.procCount += 1;
+    state.procHate += totalRageHate;
     const entry = getMobEntry(mobName, ts);
     if (entry) {
-      entry.hate += totalRageHate;
       state.activeMobName = mobName;
     }
-    updateTotal();
+    markCombatActivity(ts);
+    updateProcStats();
     renderMobList();
     updateOverlayState();
     addLine(`[PROC] ${text} -> +${totalRageHate} hate (Rage of Vallon: 500 hate + 100 spell damage)`, "spell");
@@ -357,11 +411,12 @@ function handleLine(rawLine) {
     const entry = getMobEntry(mobName, ts);
     if (singleWeapon) {
       if (attackType && attackType !== state.primaryType) return;
-      state.total += state.primaryHate;
+      state.warriorHate += state.primaryHate;
       if (entry) {
         entry.hate += state.primaryHate;
         state.activeMobName = mobName;
       }
+      markCombatActivity(ts);
       updateTotal();
       state.handTracker.recordHand("primary", ts);
       addLine(`[SWING] primary (${attackType || "unknown"}) -> +${state.primaryHate} hate`, "swing");
@@ -373,11 +428,12 @@ function handleLine(rawLine) {
     if (isUnknownMiss) {
       const hand = state.handTracker.pickHand(ts);
       const hate = hand === "primary" ? state.primaryHate : state.secondaryHate;
-      state.total += hate;
+      state.warriorHate += hate;
       if (entry) {
         entry.hate += hate;
         state.activeMobName = mobName;
       }
+      markCombatActivity(ts);
       updateTotal();
       addLine(`[SWING] ${hand} (unknown) -> +${hate} hate`, "swing");
       renderMobList();
@@ -389,11 +445,12 @@ function handleLine(rawLine) {
     const secondaryMatches = !attackType || attackType === state.secondaryType;
 
     if (primaryMatches && !secondaryMatches) {
-      state.total += state.primaryHate;
+      state.warriorHate += state.primaryHate;
       if (entry) {
         entry.hate += state.primaryHate;
         state.activeMobName = mobName;
       }
+      markCombatActivity(ts);
       updateTotal();
       state.handTracker.recordHand("primary", ts);
       addLine(`[SWING] primary (${attackType || "unknown"}) -> +${state.primaryHate} hate`, "swing");
@@ -402,11 +459,12 @@ function handleLine(rawLine) {
       return;
     }
     if (secondaryMatches && !primaryMatches) {
-      state.total += state.secondaryHate;
+      state.warriorHate += state.secondaryHate;
       if (entry) {
         entry.hate += state.secondaryHate;
         state.activeMobName = mobName;
       }
+      markCombatActivity(ts);
       updateTotal();
       state.handTracker.recordHand("secondary", ts);
       addLine(`[SWING] secondary (${attackType || "unknown"}) -> +${state.secondaryHate} hate`, "swing");
@@ -417,11 +475,12 @@ function handleLine(rawLine) {
 
     const hand = state.handTracker.pickHand(ts);
     const hate = hand === "primary" ? state.primaryHate : state.secondaryHate;
-    state.total += hate;
+    state.warriorHate += hate;
     if (entry) {
       entry.hate += hate;
       state.activeMobName = mobName;
     }
+    markCombatActivity(ts);
     updateTotal();
     addLine(`[SWING] ${hand} (${attackType || "unknown"}) -> +${hate} hate`, "swing");
     renderMobList();
@@ -536,13 +595,15 @@ document.getElementById("stop").addEventListener("click", async () => {
 window.agroApi.onLogLine((line) => handleLine(line));
 if (window.agroApi.onResetHate) {
   window.agroApi.onResetHate(() => {
-    resetHateTracking(false);
+    resetHateTracking(false, "overlay");
   });
 }
 
 loadSettings();
 updateFightReset();
 updateFluxStats();
+updateProcStats();
+updateFightResetCountdown();
 ["logFile", "level", "fightResetSeconds", "primaryDmg", "primaryDelay", "primaryType", "secondaryDmg", "secondaryDelay", "secondaryType", "singleWeapon", "overlayEnabled"].forEach(
   (id) => {
     const el = document.getElementById(id);
@@ -566,11 +627,18 @@ if (fightResetInput) {
   fightResetInput.addEventListener("change", () => {
     updateFightReset();
     renderMobList();
+    updateFightResetCountdown();
+    updateOverlayState();
   });
 }
 
 renderMobList();
-setInterval(renderMobList, 1000);
+setInterval(() => {
+  maybeResetFightOnInactivity();
+  updateFightResetCountdown();
+  renderMobList();
+  updateOverlayState();
+}, 1000);
 
 async function autoStartLogReading() {
   const logFileInput = document.getElementById("logFile");
