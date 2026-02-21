@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P99 Hate Graph Overlay</title>
+    <link rel="stylesheet" href="graph-overlay.css" />
+  </head>
+  <body>
+    <div class="graph-overlay">
+      <div class="graph-header">
+        <div class="graph-title">Hate Intersection Graph</div>
+        <div class="graph-target" id="graphTarget">No Target</div>
+      </div>
+      <div class="graph-metrics">
+        <div class="metric">
+          <span class="dot warrior"></span>
+          <span>Warrior: <strong id="graphWarrior">0</strong></span>
+        </div>
+        <div class="metric">
+          <span class="dot wizard"></span>
+          <span>Wizard: <strong id="graphWizard">0</strong></span>
+        </div>
+      </div>
+      <canvas id="hateGraph"></canvas>
+      <div class="graph-footer" id="intersectionInfo">No projected intersection yet</div>
+    </div>
+
+    <script src="graph-overlay.js"></script>
+  </body>
+</html>

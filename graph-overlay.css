@@ -1,0 +1,101 @@
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  src: local("Space Grotesk"), local("SpaceGrotesk-Regular");
+}
+
+:root {
+  --panel: rgba(20, 24, 29, 0.8);
+  --border: rgba(255, 255, 255, 0.22);
+  --ink: #f4f7fb;
+  --muted: rgba(255, 255, 255, 0.74);
+  --warrior: #ff8c42;
+  --wizard: #46b0ff;
+  --grid: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: var(--ink);
+}
+
+.graph-overlay {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px 12px;
+  width: 100%;
+  height: 100vh;
+  min-height: 240px;
+  user-select: none;
+  -webkit-app-region: drag;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.graph-title {
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.graph-target {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.graph-metrics {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot.warrior {
+  background: var(--warrior);
+}
+
+.dot.wizard {
+  background: var(--wizard);
+}
+
+#hateGraph {
+  width: 100%;
+  flex: 1;
+  min-height: 140px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.14);
+  -webkit-app-region: no-drag;
+}
+
+.graph-footer {
+  font-size: 12px;
+  color: var(--muted);
+}

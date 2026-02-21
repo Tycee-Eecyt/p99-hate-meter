@@ -5,6 +5,17 @@ const overlayFluxHate = document.getElementById("overlayFluxHate");
 const overlayProcCount = document.getElementById("overlayProcCount");
 const overlayProcHate = document.getElementById("overlayProcHate");
 const overlayResetCountdown = document.getElementById("overlayResetCountdown");
+let overlayResetAtMs = 0;
+
+function renderOverlayCountdown() {
+  if (!overlayResetCountdown) return;
+  if (!overlayResetAtMs) {
+    overlayResetCountdown.textContent = "Ready";
+    return;
+  }
+  const remaining = Math.max(0, Math.ceil((overlayResetAtMs - Date.now()) / 1000));
+  overlayResetCountdown.textContent = remaining > 0 ? `${remaining}s` : "Ready";
+}
 
 if (window.agroApi && window.agroApi.onOverlayState) {
   window.agroApi.onOverlayState((state) => {
@@ -15,7 +26,13 @@ if (window.agroApi && window.agroApi.onOverlayState) {
     overlayFluxHate.textContent = String(state.fluxHate || 0);
     overlayProcCount.textContent = String(state.procCount || 0);
     overlayProcHate.textContent = String(state.procHate || 0);
-    const remaining = Number(state.resetCountdown || 0);
-    overlayResetCountdown.textContent = remaining > 0 ? `${remaining}s` : "Ready";
+    overlayResetAtMs = Number(state.resetAtMs || 0);
+    if (!overlayResetAtMs) {
+      const fallbackRemaining = Number(state.resetCountdown || 0);
+      overlayResetAtMs = fallbackRemaining > 0 ? Date.now() + fallbackRemaining * 1000 : 0;
+    }
+    renderOverlayCountdown();
   });
 }
+
+setInterval(renderOverlayCountdown, 250);

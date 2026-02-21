@@ -7,7 +7,8 @@ const path = require("path");
 let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0 };
+let graphOverlayWindow = null;
+let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
 const itemStatsCache = new Map();
 
 function createWindow() {
@@ -49,6 +50,35 @@ function createOverlayWindow() {
   });
   overlayWindow.once("ready-to-show", () => {
     if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
+  });
+}
+
+function createGraphOverlayWindow() {
+  graphOverlayWindow = new BrowserWindow({
+    width: 460,
+    height: 280,
+    x: 320,
+    y: 20,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: true,
+    movable: true,
+    skipTaskbar: true,
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+
+  graphOverlayWindow.setAlwaysOnTop(true, "screen-saver");
+  graphOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  graphOverlayWindow.loadFile("graph-overlay.html");
+  graphOverlayWindow.on("closed", () => {
+    graphOverlayWindow = null;
+  });
+  graphOverlayWindow.once("ready-to-show", () => {
+    if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
   });
 }
 
@@ -402,6 +432,16 @@ ipcMain.handle("toggle-overlay", (_evt, enabled) => {
   return true;
 });
 
+ipcMain.handle("toggle-graph-overlay", (_evt, enabled) => {
+  if (enabled) {
+    if (!graphOverlayWindow) createGraphOverlayWindow();
+    if (graphOverlayWindow) graphOverlayWindow.show();
+  } else if (graphOverlayWindow) {
+    graphOverlayWindow.hide();
+  }
+  return true;
+});
+
 ipcMain.on("overlay-state", (_evt, state) => {
   if (state && typeof state === "object") {
     lastOverlayState = {
@@ -412,13 +452,16 @@ ipcMain.on("overlay-state", (_evt, state) => {
       procCount: state.procCount || 0,
       procHate: state.procHate || 0,
       resetCountdown: state.resetCountdown || 0,
+      resetAtMs: state.resetAtMs || 0,
     };
   }
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
+  if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });
 
 ipcMain.on("request-reset-hate", () => {
   if (mainWindow) mainWindow.webContents.send("reset-hate");
-  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0 };
+  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
+  if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });

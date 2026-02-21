@@ -128,6 +128,7 @@ function readFormSettings() {
     secondaryType: document.getElementById("secondaryType").value,
     singleWeapon: document.getElementById("singleWeapon").checked,
     overlayEnabled: document.getElementById("overlayEnabled").checked,
+    graphOverlayEnabled: document.getElementById("graphOverlayEnabled").checked,
   };
 }
 
@@ -144,6 +145,7 @@ function applyFormSettings(settings) {
   if (settings.secondaryType !== undefined) document.getElementById("secondaryType").value = settings.secondaryType;
   if (settings.singleWeapon !== undefined) document.getElementById("singleWeapon").checked = !!settings.singleWeapon;
   if (settings.overlayEnabled !== undefined) document.getElementById("overlayEnabled").checked = !!settings.overlayEnabled;
+  if (settings.graphOverlayEnabled !== undefined) document.getElementById("graphOverlayEnabled").checked = !!settings.graphOverlayEnabled;
 }
 
 function loadSettings() {
@@ -193,6 +195,13 @@ function getFightResetRemainingSeconds() {
   if (resetMs <= 0) return 0;
   const elapsedMs = Date.now() - state.lastCombatAt.getTime();
   return Math.max(0, Math.ceil((resetMs - elapsedMs) / 1000));
+}
+
+function getFightResetAtMs() {
+  if (!state.lastCombatAt) return 0;
+  const resetMs = state.fightResetSeconds * 1000;
+  if (resetMs <= 0) return 0;
+  return state.lastCombatAt.getTime() + resetMs;
 }
 
 function updateFightResetCountdown() {
@@ -263,6 +272,7 @@ function updateOverlayState() {
     procCount: state.procCount,
     procHate: state.procHate,
     resetCountdown: getFightResetRemainingSeconds(),
+    resetAtMs: getFightResetAtMs(),
   });
 }
 
@@ -604,7 +614,20 @@ updateFightReset();
 updateFluxStats();
 updateProcStats();
 updateFightResetCountdown();
-["logFile", "level", "fightResetSeconds", "primaryDmg", "primaryDelay", "primaryType", "secondaryDmg", "secondaryDelay", "secondaryType", "singleWeapon", "overlayEnabled"].forEach(
+[
+  "logFile",
+  "level",
+  "fightResetSeconds",
+  "primaryDmg",
+  "primaryDelay",
+  "primaryType",
+  "secondaryDmg",
+  "secondaryDelay",
+  "secondaryType",
+  "singleWeapon",
+  "overlayEnabled",
+  "graphOverlayEnabled",
+].forEach(
   (id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -620,6 +643,15 @@ if (overlayToggle) {
   };
   syncOverlay(overlayToggle.checked);
   overlayToggle.addEventListener("change", () => syncOverlay(overlayToggle.checked));
+}
+
+const graphOverlayToggle = document.getElementById("graphOverlayEnabled");
+if (graphOverlayToggle) {
+  const syncGraphOverlay = (enabled) => {
+    if (window.agroApi && window.agroApi.toggleGraphOverlay) window.agroApi.toggleGraphOverlay(enabled);
+  };
+  syncGraphOverlay(graphOverlayToggle.checked);
+  graphOverlayToggle.addEventListener("change", () => syncGraphOverlay(graphOverlayToggle.checked));
 }
 
 const fightResetInput = document.getElementById("fightResetSeconds");
