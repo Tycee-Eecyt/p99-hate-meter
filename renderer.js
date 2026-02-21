@@ -89,6 +89,7 @@ class SwingHandTracker {
 
 const state = {
   warriorHate: 0,
+  warriorDamage: 0,
   fluxCount: 0,
   fluxHate: 0,
   procCount: 0,
@@ -242,14 +243,6 @@ function updateWeaponStats() {
   state.handTracker = new SwingHandTracker(primaryDelay, secondaryDelay);
 }
 
-function attackTypeLabel(type) {
-  if (type === "slash") return "Slashing";
-  if (type === "pierce") return "Piercing";
-  if (type === "crush") return "Crushing";
-  if (type === "punch") return "Punching";
-  return "Unknown";
-}
-
 function updateFightReset() {
   const raw = Number(document.getElementById("fightResetSeconds").value);
   if (Number.isFinite(raw) && raw > 0) {
@@ -263,10 +256,10 @@ function normalizeMobName(name) {
 
 function getAttackInfo(text) {
   let match = text.match(MELEE_HIT_RE);
-  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]) };
+  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]), damage: Number(match[3]) || 0 };
   match = text.match(MELEE_MISS_RE);
-  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]) };
-  return { type: "", mobName: "" };
+  if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]), damage: 0 };
+  return { type: "", mobName: "", damage: 0 };
 }
 
 function updateOverlayState() {
@@ -275,6 +268,7 @@ function updateOverlayState() {
   window.agroApi.setOverlayState({
     mobName,
     hate: state.warriorHate,
+    damage: state.warriorDamage,
     fluxCount: state.fluxCount,
     fluxHate: state.fluxHate,
     procCount: state.procCount,
@@ -286,6 +280,7 @@ function updateOverlayState() {
 
 function resetHateTracking(clearLog = false, reason = "manual") {
   state.warriorHate = 0;
+  state.warriorDamage = 0;
   state.fluxCount = 0;
   state.fluxHate = 0;
   state.procCount = 0;
@@ -423,6 +418,10 @@ function handleLine(rawLine) {
     const singleWeapon = document.getElementById("singleWeapon").checked;
     const info = getAttackInfo(text);
     const attackType = info.type;
+    const hitDamage = info.damage || 0;
+    if (hitDamage > 0) {
+      state.warriorDamage += hitDamage;
+    }
     let mobName = info.mobName;
     if (!mobName && state.activeMobName) mobName = state.activeMobName;
     const isUnknownMiss = !attackType && MELEE_MISS_SHORT_RE.test(text);
@@ -535,10 +534,6 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     document.getElementById("primaryDelay").value = String(result.primary.delay);
     updated = true;
   }
-  if (result.primary && result.primary.attackType && !result.primary.isEmpty) {
-    document.getElementById("primaryType").value = result.primary.attackType;
-    updated = true;
-  }
 
   if (result.secondary && result.secondary.foundStats) {
     if (result.secondary.isEmpty) {
@@ -548,9 +543,6 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     } else {
       document.getElementById("secondaryDmg").value = String(result.secondary.damage);
       document.getElementById("secondaryDelay").value = String(result.secondary.delay);
-      if (result.secondary.attackType) {
-        document.getElementById("secondaryType").value = result.secondary.attackType;
-      }
       document.getElementById("singleWeapon").checked = false;
       updated = true;
     }
@@ -559,19 +551,15 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
   if (!silent) {
     if (result.inventoryPath) addLine(`[SYSTEM] Inventory loaded: ${result.inventoryPath}`, "spell");
     if (result.primary && result.primary.foundStats && !result.primary.isEmpty) {
-      const typeText = result.primary.skillLabel || attackTypeLabel(result.primary.attackType);
-      addLine(`[SYSTEM] Primary ${result.primary.name}: ${result.primary.damage}/${result.primary.delay} (${typeText})`, "spell");
+      addLine(`[SYSTEM] Primary ${result.primary.name}: ${result.primary.damage}/${result.primary.delay}`, "spell");
     } else if (result.primary && !result.primary.isEmpty) {
-      const typeText = result.primary.skillLabel || attackTypeLabel(result.primary.attackType);
-      addLine(`[SYSTEM] Primary ${result.primary.name}: missing DMG/Delay lookup (${typeText})`, "spell");
+      addLine(`[SYSTEM] Primary ${result.primary.name}: missing DMG/Delay lookup`, "spell");
     }
 
     if (result.secondary && result.secondary.foundStats && !result.secondary.isEmpty) {
-      const typeText = result.secondary.skillLabel || attackTypeLabel(result.secondary.attackType);
-      addLine(`[SYSTEM] Secondary ${result.secondary.name}: ${result.secondary.damage}/${result.secondary.delay} (${typeText})`, "spell");
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: ${result.secondary.damage}/${result.secondary.delay}`, "spell");
     } else if (result.secondary && !result.secondary.isEmpty) {
-      const typeText = result.secondary.skillLabel || attackTypeLabel(result.secondary.attackType);
-      addLine(`[SYSTEM] Secondary ${result.secondary.name}: missing DMG/Delay lookup (${typeText})`, "spell");
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: missing DMG/Delay lookup`, "spell");
     }
   }
 

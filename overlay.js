@@ -2,8 +2,7 @@ const overlayValue = document.getElementById("overlayHate");
 const overlayName = document.getElementById("overlayName");
 const overlayFluxCount = document.getElementById("overlayFluxCount");
 const overlayFluxHate = document.getElementById("overlayFluxHate");
-const overlayResetBtn = document.getElementById("overlayResetBtn");
-const overlayLoadInventoryBtn = document.getElementById("overlayLoadInventoryBtn");
+const overlayDamage = document.getElementById("overlayDamage");
 const overlayProcCount = document.getElementById("overlayProcCount");
 const overlayProcHate = document.getElementById("overlayProcHate");
 const overlayResetCountdown = document.getElementById("overlayResetCountdown");
@@ -24,6 +23,7 @@ if (window.agroApi && window.agroApi.onOverlayState) {
     if (!state) return;
     overlayName.textContent = state.mobName ? state.mobName : "No Target";
     overlayValue.textContent = String(state.hate || 0);
+    overlayDamage.textContent = String(state.damage || 0);
     overlayFluxCount.textContent = String(state.fluxCount || 0);
     overlayFluxHate.textContent = String(state.fluxHate || 0);
     overlayProcCount.textContent = String(state.procCount || 0);
@@ -38,15 +38,3 @@ if (window.agroApi && window.agroApi.onOverlayState) {
 }
 
 setInterval(renderOverlayCountdown, 250);
-
-if (overlayResetBtn && window.agroApi && window.agroApi.requestResetHate) {
-  overlayResetBtn.addEventListener("click", () => {
-    window.agroApi.requestResetHate();
-  });
-}
-
-if (overlayLoadInventoryBtn && window.agroApi && window.agroApi.requestLoadInventory) {
-  overlayLoadInventoryBtn.addEventListener("click", () => {
-    window.agroApi.requestLoadInventory();
-  });
-}

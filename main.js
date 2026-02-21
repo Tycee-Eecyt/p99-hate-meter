@@ -8,80 +8,8 @@ let mainWindow = null;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+let lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
 const itemStatsCache = new Map();
-const OVERLAY_STATE_FILE = "overlay-window-state.json";
-const DEFAULT_OVERLAY_WINDOW_STATE = {
-  overlay: { x: 20, y: 20, width: 280, height: 240 },
-  graph: { x: 320, y: 20, width: 460, height: 280 },
-};
-let overlayWindowState = { ...DEFAULT_OVERLAY_WINDOW_STATE };
-let overlayWindowStateLoaded = false;
-let overlayWindowStateSaveTimer = null;
-const WEAPON_TYPE_RULES = [
-  { pattern: /\b(1h|2h)?\s*slashing\b/i, attackType: "slash" },
-  { pattern: /\b(1h|2h)?\s*piercing\b/i, attackType: "pierce" },
-  { pattern: /\b(1h|2h)?\s*(blunt|bludgeoning|crushing)\b/i, attackType: "crush" },
-  { pattern: /\bhand\s*to\s*hand\b/i, attackType: "punch" },
-];
-
-function getOverlayWindowStatePath() {
-  return path.join(app.getPath("userData"), OVERLAY_STATE_FILE);
-}
-
-function sanitizeBounds(bounds, fallback) {
-  const safe = { ...fallback };
-  if (!bounds || typeof bounds !== "object") return safe;
-  if (Number.isFinite(bounds.x)) safe.x = Math.trunc(bounds.x);
-  if (Number.isFinite(bounds.y)) safe.y = Math.trunc(bounds.y);
-  if (Number.isFinite(bounds.width) && bounds.width > 0) safe.width = Math.trunc(bounds.width);
-  if (Number.isFinite(bounds.height) && bounds.height > 0) safe.height = Math.trunc(bounds.height);
-  return safe;
-}
-
-function loadOverlayWindowState() {
-  if (overlayWindowStateLoaded) return;
-  overlayWindowStateLoaded = true;
-  overlayWindowState = {
-    overlay: { ...DEFAULT_OVERLAY_WINDOW_STATE.overlay },
-    graph: { ...DEFAULT_OVERLAY_WINDOW_STATE.graph },
-  };
-
-  try {
-    const raw = fs.readFileSync(getOverlayWindowStatePath(), "utf8");
-    const parsed = JSON.parse(raw);
-    overlayWindowState.overlay = sanitizeBounds(parsed.overlay, DEFAULT_OVERLAY_WINDOW_STATE.overlay);
-    overlayWindowState.graph = sanitizeBounds(parsed.graph, DEFAULT_OVERLAY_WINDOW_STATE.graph);
-  } catch {
-    // Missing/corrupt state file should not block app startup.
-  }
-}
-
-function saveOverlayWindowStateNow() {
-  if (!overlayWindowStateLoaded) return;
-  try {
-    fs.writeFileSync(getOverlayWindowStatePath(), JSON.stringify(overlayWindowState, null, 2), "utf8");
-  } catch {
-    // Ignore persistence failures.
-  }
-}
-
-function scheduleOverlayWindowStateSave() {
-  if (overlayWindowStateSaveTimer) clearTimeout(overlayWindowStateSaveTimer);
-  overlayWindowStateSaveTimer = setTimeout(() => {
-    overlayWindowStateSaveTimer = null;
-    saveOverlayWindowStateNow();
-  }, 150);
-}
-
-function captureOverlayBounds(kind, windowRef) {
-  if (!windowRef || windowRef.isDestroyed()) return;
-  const bounds = windowRef.getBounds();
-  if (!bounds) return;
-  const fallback = DEFAULT_OVERLAY_WINDOW_STATE[kind] || DEFAULT_OVERLAY_WINDOW_STATE.overlay;
-  overlayWindowState[kind] = sanitizeBounds(bounds, fallback);
-  scheduleOverlayWindowStateSave();
-}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -97,17 +25,17 @@ function createWindow() {
 }
 
 function createOverlayWindow() {
-  loadOverlayWindowState();
-  const bounds = sanitizeBounds(overlayWindowState.overlay, DEFAULT_OVERLAY_WINDOW_STATE.overlay);
   overlayWindow = new BrowserWindow({
-    width: bounds.width,
-    height: bounds.height,
-    x: bounds.x,
-    y: bounds.y,
+    width: 320,
+    height: 320,
+    x: 20,
+    y: 20,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
+    minWidth: 250,
+    minHeight: 240,
     movable: true,
     skipTaskbar: true,
     webPreferences: {
@@ -119,9 +47,7 @@ function createOverlayWindow() {
   overlayWindow.setAlwaysOnTop(true, "screen-saver");
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWindow.loadFile("overlay.html");
-  overlayWindow.on("move", () => captureOverlayBounds("overlay", overlayWindow));
   overlayWindow.on("closed", () => {
-    captureOverlayBounds("overlay", overlayWindow);
     overlayWindow = null;
   });
   overlayWindow.once("ready-to-show", () => {
@@ -130,13 +56,11 @@ function createOverlayWindow() {
 }
 
 function createGraphOverlayWindow() {
-  loadOverlayWindowState();
-  const bounds = sanitizeBounds(overlayWindowState.graph, DEFAULT_OVERLAY_WINDOW_STATE.graph);
   graphOverlayWindow = new BrowserWindow({
-    width: bounds.width,
-    height: bounds.height,
-    x: bounds.x,
-    y: bounds.y,
+    width: 460,
+    height: 280,
+    x: 320,
+    y: 20,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -152,10 +76,7 @@ function createGraphOverlayWindow() {
   graphOverlayWindow.setAlwaysOnTop(true, "screen-saver");
   graphOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   graphOverlayWindow.loadFile("graph-overlay.html");
-  graphOverlayWindow.on("move", () => captureOverlayBounds("graph", graphOverlayWindow));
-  graphOverlayWindow.on("resize", () => captureOverlayBounds("graph", graphOverlayWindow));
   graphOverlayWindow.on("closed", () => {
-    captureOverlayBounds("graph", graphOverlayWindow);
     graphOverlayWindow = null;
   });
   graphOverlayWindow.once("ready-to-show", () => {
@@ -171,16 +92,6 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
-
-app.on("before-quit", () => {
-  captureOverlayBounds("overlay", overlayWindow);
-  captureOverlayBounds("graph", graphOverlayWindow);
-  if (overlayWindowStateSaveTimer) {
-    clearTimeout(overlayWindowStateSaveTimer);
-    overlayWindowStateSaveTimer = null;
-  }
-  saveOverlayWindowStateNow();
 });
 
 function findLatestLog(logDir) {
@@ -302,44 +213,11 @@ function parseInventoryWeaponRows(content) {
       slot,
       name: cols[1].trim(),
       id: Number(cols[2]),
-      weaponSkill: extractWeaponSkillFromInventoryRow(cols),
     };
     result[slot] = item;
   }
 
   return result;
-}
-
-function extractWeaponSkillFromInventoryRow(cols) {
-  const joined = cols.join(" ");
-  for (const rule of WEAPON_TYPE_RULES) {
-    const match = joined.match(rule.pattern);
-    if (match) return match[0].trim();
-  }
-  return "";
-}
-
-function normalizeAttackType(rawSkill) {
-  const skill = String(rawSkill || "").trim();
-  if (!skill) return "";
-  for (const rule of WEAPON_TYPE_RULES) {
-    if (rule.pattern.test(skill)) {
-      return { skillLabel: skill, attackType: rule.attackType };
-    }
-  }
-  return { skillLabel: skill, attackType: "" };
-}
-
-function parseWeaponSkillFromWikiHtml(html) {
-  const skillIndex = html.search(/Skill:/i);
-  const scope = skillIndex >= 0 ? html.slice(skillIndex, skillIndex + 600) : html.slice(0, 1000);
-  const plain = scope.replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
-
-  for (const rule of WEAPON_TYPE_RULES) {
-    const match = plain.match(rule.pattern);
-    if (match) return normalizeAttackType(match[0]);
-  }
-  return null;
 }
 
 function fetchText(url, redirectCount = 0) {
@@ -379,18 +257,8 @@ async function fetchItemStatsFromWiki(itemName) {
   const html = await fetchText(url);
   const delayMatch = html.match(/Atk Delay:\s*(\d+)/i);
   const dmgMatch = html.match(/\bDMG:\s*(\d+)/i);
-  const skill = parseWeaponSkillFromWikiHtml(html);
 
-  const stats =
-    delayMatch && dmgMatch
-      ? {
-          damage: Number(dmgMatch[1]),
-          delay: Number(delayMatch[1]),
-          skillLabel: skill?.skillLabel || "",
-          attackType: skill?.attackType || "",
-          sourceUrl: url,
-        }
-      : null;
+  const stats = delayMatch && dmgMatch ? { damage: Number(dmgMatch[1]), delay: Number(delayMatch[1]), sourceUrl: url } : null;
   itemStatsCache.set(cacheKey, stats);
   return stats;
 }
@@ -436,46 +304,15 @@ async function buildWeaponStatsFromInventory(logFilePath) {
         isEmpty: true,
         damage: 0,
         delay: 0,
-        skillLabel: "",
-        attackType: "",
         foundStats: true,
       };
     }
     try {
       const stats = await fetchItemStatsFromWiki(slotData.name);
-      if (!stats) {
-        const parsedInventoryType = normalizeAttackType(slotData.weaponSkill);
-        return {
-          ...slotData,
-          isEmpty: false,
-          foundStats: false,
-          damage: 0,
-          delay: 0,
-          skillLabel: parsedInventoryType?.skillLabel || slotData.weaponSkill || "",
-          attackType: parsedInventoryType?.attackType || "",
-        };
-      }
-      return {
-        ...slotData,
-        isEmpty: false,
-        foundStats: true,
-        damage: stats.damage,
-        delay: stats.delay,
-        skillLabel: stats.skillLabel || slotData.weaponSkill || "",
-        attackType: stats.attackType || normalizeAttackType(slotData.weaponSkill)?.attackType || "",
-        sourceUrl: stats.sourceUrl,
-      };
+      if (!stats) return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
+      return { ...slotData, isEmpty: false, foundStats: true, damage: stats.damage, delay: stats.delay, sourceUrl: stats.sourceUrl };
     } catch {
-      const parsedInventoryType = normalizeAttackType(slotData.weaponSkill);
-      return {
-        ...slotData,
-        isEmpty: false,
-        foundStats: false,
-        damage: 0,
-        delay: 0,
-        skillLabel: parsedInventoryType?.skillLabel || slotData.weaponSkill || "",
-        attackType: parsedInventoryType?.attackType || "",
-      };
+      return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
     }
   }
 
@@ -612,6 +449,7 @@ ipcMain.on("overlay-state", (_evt, state) => {
     lastOverlayState = {
       mobName: state.mobName || "",
       hate: state.hate || 0,
+      damage: state.damage || 0,
       fluxCount: state.fluxCount || 0,
       fluxHate: state.fluxHate || 0,
       procCount: state.procCount || 0,
@@ -626,7 +464,7 @@ ipcMain.on("overlay-state", (_evt, state) => {
 
 ipcMain.on("request-reset-hate", () => {
   if (mainWindow) mainWindow.webContents.send("reset-hate");
-  lastOverlayState = { mobName: "", hate: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+  lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });

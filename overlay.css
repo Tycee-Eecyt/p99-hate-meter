@@ -6,10 +6,14 @@
 }
 
 :root {
-  --panel: rgba(26, 24, 20, 0.72);
+  --panel: rgba(11, 15, 22, 0.8);
+  --panel-hi: rgba(21, 29, 41, 0.76);
+  --card: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.2);
-  --ink: #f5efe6;
-  --muted: rgba(255, 255, 255, 0.7);
+  --ink: #eef2f8;
+  --muted: rgba(225, 235, 248, 0.72);
+  --warrior: #f3a259;
+  --wizard: #69b8ff;
 }
 
 * {
@@ -21,86 +25,147 @@ body {
   background: transparent;
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
   color: var(--ink);
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
 }
 
 .overlay {
-  background: var(--panel);
+  background: linear-gradient(145deg, var(--panel-hi), var(--panel));
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 12px 16px;
-  min-width: 260px;
+  border-radius: 14px;
+  padding: clamp(8px, 2vh, 12px);
+  width: 100%;
   height: 100%;
-  text-align: right;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  gap: clamp(6px, 1.4vh, 10px);
+  text-align: left;
   user-select: none;
   -webkit-app-region: drag;
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+}
+
+.overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.overlay-kicker {
+  font-size: clamp(9px, 1.8vh, 11px);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .overlay-name {
   font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 4px;
+  font-size: clamp(12px, 2.6vh, 17px);
+  max-width: 58%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 .overlay-label {
-  font-size: 11px;
+  font-size: clamp(8px, 1.5vh, 10px);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   color: var(--muted);
 }
 
-.overlay-value {
-  font-size: 26px;
-  font-weight: 700;
-}
-
-.overlay-grid {
+.overlay-hero-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: clamp(6px, 1.2vh, 10px);
 }
 
-.overlay-stat {
+.overlay-hero-card {
   min-width: 0;
-}
-
-.overlay-sub-label {
-  margin-top: 4px;
-}
-
-.overlay-sub-value {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.overlay-reset {
-  margin-top: 0;
-}
-
-.overlay-action-btn {
-  width: 100%;
-  border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--card);
+  padding: clamp(6px, 1.1vh, 9px);
+}
+
+.overlay-hero-card:first-child .overlay-hero-value {
+  color: var(--warrior);
+}
+
+.overlay-hero-card:last-child .overlay-hero-value {
+  color: var(--wizard);
+}
+
+.overlay-hero-value {
+  margin-top: 2px;
+  font-size: clamp(18px, 5.1vh, 30px);
   font-weight: 700;
-  letter-spacing: 0.4px;
-  padding: 7px 10px;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
 }
 
-.overlay-sub-grid {
+.overlay-hero-meta {
+  margin-top: clamp(4px, 0.8vh, 6px);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.overlay-hero-meta-value {
+  font-size: clamp(12px, 2.3vh, 16px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlay-inline-muted {
+  color: var(--muted);
+  font-size: clamp(9px, 1.6vh, 12px);
+  line-height: 1;
+}
+
+.overlay-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(6px, 1.2vh, 10px);
+}
+
+.overlay-metric-card {
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--card);
+  padding: clamp(5px, 1vh, 8px);
+}
+
+.overlay-metric-value {
+  margin-top: 2px;
+  font-size: clamp(14px, 3.3vh, 21px);
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlay-reset-row {
+  margin-top: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  padding: clamp(6px, 1.1vh, 9px) clamp(8px, 1.4vw, 12px);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
 }
 
-.overlay-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+.overlay-reset-value {
+  font-size: clamp(14px, 3.2vh, 20px);
+  font-weight: 700;
+  line-height: 1;
 }
+
