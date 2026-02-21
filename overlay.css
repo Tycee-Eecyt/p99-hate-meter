@@ -74,7 +74,10 @@ body {
 }
 
 .overlay-reset {
-  margin-top: 8px;
+  margin-top: 0;
+}
+
+.overlay-action-btn {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -93,4 +96,11 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.overlay-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
 }

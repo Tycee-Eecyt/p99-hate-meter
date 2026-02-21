@@ -8,7 +8,7 @@ const WEAR_OFF_LINES = {
 };
 
 const MELEE_HIT_RE = /\bYou (slash|pierce|crush|punch) (.+?) for (\d+) points of damage\./i;
-const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?!\b/i;
+const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?[.!]?\s*$/i;
 const MELEE_MISS_SHORT_RE = /\bYou miss\b/i;
 const RIPOSTE_PARRY_RE = /\bYou (riposte|parry)\b/i;
 const TIMESTAMP_RE = /^\[(.+?)\]\s+/;
@@ -240,6 +240,14 @@ function updateWeaponStats() {
   state.primaryHate = primaryDmg + bonus;
   state.secondaryHate = secondaryDmg + bonus;
   state.handTracker = new SwingHandTracker(primaryDelay, secondaryDelay);
+}
+
+function attackTypeLabel(type) {
+  if (type === "slash") return "Slashing";
+  if (type === "pierce") return "Piercing";
+  if (type === "crush") return "Crushing";
+  if (type === "punch") return "Punching";
+  return "Unknown";
 }
 
 function updateFightReset() {
@@ -527,6 +535,10 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     document.getElementById("primaryDelay").value = String(result.primary.delay);
     updated = true;
   }
+  if (result.primary && result.primary.attackType && !result.primary.isEmpty) {
+    document.getElementById("primaryType").value = result.primary.attackType;
+    updated = true;
+  }
 
   if (result.secondary && result.secondary.foundStats) {
     if (result.secondary.isEmpty) {
@@ -536,6 +548,9 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     } else {
       document.getElementById("secondaryDmg").value = String(result.secondary.damage);
       document.getElementById("secondaryDelay").value = String(result.secondary.delay);
+      if (result.secondary.attackType) {
+        document.getElementById("secondaryType").value = result.secondary.attackType;
+      }
       document.getElementById("singleWeapon").checked = false;
       updated = true;
     }
@@ -544,15 +559,19 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
   if (!silent) {
     if (result.inventoryPath) addLine(`[SYSTEM] Inventory loaded: ${result.inventoryPath}`, "spell");
     if (result.primary && result.primary.foundStats && !result.primary.isEmpty) {
-      addLine(`[SYSTEM] Primary ${result.primary.name}: ${result.primary.damage}/${result.primary.delay}`, "spell");
+      const typeText = result.primary.skillLabel || attackTypeLabel(result.primary.attackType);
+      addLine(`[SYSTEM] Primary ${result.primary.name}: ${result.primary.damage}/${result.primary.delay} (${typeText})`, "spell");
     } else if (result.primary && !result.primary.isEmpty) {
-      addLine(`[SYSTEM] Primary ${result.primary.name}: missing DMG/Delay lookup`, "spell");
+      const typeText = result.primary.skillLabel || attackTypeLabel(result.primary.attackType);
+      addLine(`[SYSTEM] Primary ${result.primary.name}: missing DMG/Delay lookup (${typeText})`, "spell");
     }
 
     if (result.secondary && result.secondary.foundStats && !result.secondary.isEmpty) {
-      addLine(`[SYSTEM] Secondary ${result.secondary.name}: ${result.secondary.damage}/${result.secondary.delay}`, "spell");
+      const typeText = result.secondary.skillLabel || attackTypeLabel(result.secondary.attackType);
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: ${result.secondary.damage}/${result.secondary.delay} (${typeText})`, "spell");
     } else if (result.secondary && !result.secondary.isEmpty) {
-      addLine(`[SYSTEM] Secondary ${result.secondary.name}: missing DMG/Delay lookup`, "spell");
+      const typeText = result.secondary.skillLabel || attackTypeLabel(result.secondary.attackType);
+      addLine(`[SYSTEM] Secondary ${result.secondary.name}: missing DMG/Delay lookup (${typeText})`, "spell");
     }
   }
 
@@ -606,6 +625,12 @@ window.agroApi.onLogLine((line) => handleLine(line));
 if (window.agroApi.onResetHate) {
   window.agroApi.onResetHate(() => {
     resetHateTracking(false, "overlay");
+  });
+}
+if (window.agroApi.onRequestLoadInventory) {
+  window.agroApi.onRequestLoadInventory(async () => {
+    const file = document.getElementById("logFile").value.trim();
+    await loadWeaponStatsFromInventory(file, { silent: false });
   });
 }
 

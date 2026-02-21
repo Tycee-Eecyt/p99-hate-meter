@@ -3,6 +3,7 @@ const overlayName = document.getElementById("overlayName");
 const overlayFluxCount = document.getElementById("overlayFluxCount");
 const overlayFluxHate = document.getElementById("overlayFluxHate");
 const overlayResetBtn = document.getElementById("overlayResetBtn");
+const overlayLoadInventoryBtn = document.getElementById("overlayLoadInventoryBtn");
 const overlayProcCount = document.getElementById("overlayProcCount");
 const overlayProcHate = document.getElementById("overlayProcHate");
 const overlayResetCountdown = document.getElementById("overlayResetCountdown");
@@ -41,5 +42,11 @@ setInterval(renderOverlayCountdown, 250);
 if (overlayResetBtn && window.agroApi && window.agroApi.requestResetHate) {
   overlayResetBtn.addEventListener("click", () => {
     window.agroApi.requestResetHate();
+  });
+}
+
+if (overlayLoadInventoryBtn && window.agroApi && window.agroApi.requestLoadInventory) {
+  overlayLoadInventoryBtn.addEventListener("click", () => {
+    window.agroApi.requestLoadInventory();
   });
 }

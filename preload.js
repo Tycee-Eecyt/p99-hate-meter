@@ -14,4 +14,6 @@ contextBridge.exposeInMainWorld("agroApi", {
   onOverlayState: (handler) => ipcRenderer.on("overlay-state", (_evt, state) => handler(state)),
   requestResetHate: () => ipcRenderer.send("request-reset-hate"),
   onResetHate: (handler) => ipcRenderer.on("reset-hate", () => handler()),
+  requestLoadInventory: () => ipcRenderer.send("request-load-inventory"),
+  onRequestLoadInventory: (handler) => ipcRenderer.on("request-load-inventory", () => handler()),
 });
