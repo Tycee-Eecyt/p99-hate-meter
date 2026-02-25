@@ -1,6 +1,8 @@
 const targetEl = document.getElementById("graphTarget");
 const warriorEl = document.getElementById("graphWarrior");
 const wizardEl = document.getElementById("graphWizard");
+const warriorTpmEl = document.getElementById("graphWarriorTpm");
+const wizardTpmEl = document.getElementById("graphWizardTpm");
 const intersectionInfoEl = document.getElementById("intersectionInfo");
 const graphResetBtn = document.getElementById("graphResetBtn");
 const graphLoadInventoryBtn = document.getElementById("graphLoadInventoryBtn");
@@ -59,6 +61,28 @@ function getProjectedIntersection(nowMs) {
     return { text: "No projected intersection from current rates", seconds: null };
   }
   return { text: `Projected intersection in ${Math.ceil(secondsToIntersect)}s`, seconds: secondsToIntersect };
+}
+
+function getCurrentRates(nowMs) {
+  if (history.length < 2) return { warriorPerMinute: 0, wizardPerMinute: 0 };
+  const latest = history[history.length - 1];
+  const threshold = nowMs - RATE_WINDOW_MS;
+  let anchor = history[0];
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].t <= threshold) {
+      anchor = history[i];
+      break;
+    }
+  }
+
+  const dt = (latest.t - anchor.t) / 1000;
+  if (dt <= 0) return { warriorPerMinute: 0, wizardPerMinute: 0 };
+  const warriorPerSecond = (latest.warrior - anchor.warrior) / dt;
+  const wizardPerSecond = (latest.wizard - anchor.wizard) / dt;
+  return {
+    warriorPerMinute: Math.max(0, warriorPerSecond * 60),
+    wizardPerMinute: Math.max(0, wizardPerSecond * 60),
+  };
 }
 
 function findHistoricalIntersections(nowMs) {
@@ -184,7 +208,11 @@ function appendPoint(state) {
     wizard: Number(state.fluxHate || 0),
   };
   const last = history[history.length - 1];
-  if (last && nowMs - last.t < 400) {
+  if (last && (point.warrior < last.warrior || point.wizard < last.wizard)) {
+    history.length = 0;
+  }
+  const lastAfterReset = history[history.length - 1];
+  if (lastAfterReset && nowMs - lastAfterReset.t < 400) {
     history[history.length - 1] = point;
   } else {
     history.push(point);
@@ -194,6 +222,9 @@ function appendPoint(state) {
 
   const projection = getProjectedIntersection(nowMs);
   intersectionInfoEl.textContent = projection.text;
+  const rates = getCurrentRates(nowMs);
+  warriorTpmEl.textContent = String(Math.round(rates.warriorPerMinute));
+  wizardTpmEl.textContent = String(Math.round(rates.wizardPerMinute));
 }
 
 if (window.agroApi && window.agroApi.onOverlayState) {

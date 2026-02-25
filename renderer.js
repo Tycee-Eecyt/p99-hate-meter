@@ -22,6 +22,8 @@ const FLUX_LOOKS_UNCOMFORTABLE_RE = /\blooks uncomfortable\.\s*$/i;
 const RAGE_OF_VALLON_RE = /^(.+?) is weakened by the Rage of Vallon\.\s*$/i;
 const MAIN_HAND_HATE_BONUS = 11;
 const OFF_HAND_HATE_BONUS = 12;
+const DUP_LINE_WINDOW_MS = 5000;
+const DUP_LINE_MAX_KEYS = 1200;
 
 function parseLogTimestamp(line) {
   const match = line.match(TIMESTAMP_RE);
@@ -84,12 +86,17 @@ const state = {
   secondaryHate: 0,
   primaryType: "slash",
   secondaryType: "pierce",
+  primaryWeaponName: "",
+  secondaryWeaponName: "",
+  primaryWeaponLabel: "Primary: Unknown",
+  secondaryWeaponLabel: "Secondary: Unknown",
   handTracker: new SwingHandTracker(2.4, 1.8),
   mobs: new Map(),
   activeMobName: "",
   fightResetSeconds: 30,
   lastCombatAt: null,
 };
+const seenRawLines = new Map();
 
 const totalHate = document.getElementById("totalHate");
 const fluxCountEl = document.getElementById("fluxCount");
@@ -214,6 +221,33 @@ function rageOfVallonMobName(text) {
   return normalizeMobName(match[1]);
 }
 
+function titleCase(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+}
+
+function updateEquippedWeaponLabels() {
+  const primaryDmg = Number(document.getElementById("primaryDmg").value) || 0;
+  const secondaryDmg = Number(document.getElementById("secondaryDmg").value) || 0;
+  const primaryDelay = Number(document.getElementById("primaryDelay").value) || 0;
+  const secondaryDelay = Number(document.getElementById("secondaryDelay").value) || 0;
+  const primaryType = titleCase(document.getElementById("primaryType").value);
+  const secondaryType = titleCase(document.getElementById("secondaryType").value);
+  const singleWeapon = document.getElementById("singleWeapon").checked;
+
+  const primaryName = state.primaryWeaponName || "Configured";
+  state.primaryWeaponLabel = `${primaryName} (${primaryDmg}/${primaryDelay} ${primaryType})`;
+
+  if (singleWeapon) {
+    state.secondaryWeaponLabel = "Disabled (Single Weapon Mode)";
+    return;
+  }
+
+  const secondaryName = state.secondaryWeaponName || "Configured";
+  state.secondaryWeaponLabel = `${secondaryName} (${secondaryDmg}/${secondaryDelay} ${secondaryType})`;
+}
+
 function updateWeaponStats() {
   updateFightReset();
   const primaryDmg = Number(document.getElementById("primaryDmg").value);
@@ -225,6 +259,7 @@ function updateWeaponStats() {
   state.primaryHate = primaryDmg + MAIN_HAND_HATE_BONUS;
   state.secondaryHate = secondaryDmg + OFF_HAND_HATE_BONUS;
   state.handTracker = new SwingHandTracker(primaryDelay, secondaryDelay);
+  updateEquippedWeaponLabels();
 }
 
 function updateFightReset() {
@@ -272,6 +307,8 @@ function updateOverlayState() {
     fluxHate: state.fluxHate,
     procCount: state.procCount,
     procHate: state.procHate,
+    primaryWeapon: state.primaryWeaponLabel,
+    secondaryWeapon: state.secondaryWeaponLabel,
     resetCountdown: getFightResetRemainingSeconds(),
     resetAtMs: getFightResetAtMs(),
   });
@@ -375,6 +412,21 @@ function renderMobList() {
 }
 
 function handleLine(rawLine) {
+  const nowMs = Date.now();
+  const prevSeen = seenRawLines.get(rawLine);
+  if (prevSeen && nowMs - prevSeen < DUP_LINE_WINDOW_MS) return;
+  seenRawLines.set(rawLine, nowMs);
+  if (seenRawLines.size > DUP_LINE_MAX_KEYS) {
+    for (const [line, seenAt] of seenRawLines) {
+      if (nowMs - seenAt > DUP_LINE_WINDOW_MS) seenRawLines.delete(line);
+    }
+    while (seenRawLines.size > DUP_LINE_MAX_KEYS) {
+      const firstKey = seenRawLines.keys().next().value;
+      if (!firstKey) break;
+      seenRawLines.delete(firstKey);
+    }
+  }
+
   const { ts, text } = parseLogTimestamp(rawLine);
 
   const spellHate = spellHateForLine(text);
@@ -550,6 +602,9 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     document.getElementById("primaryDelay").value = String(result.primary.delay);
     updated = true;
   }
+  if (result.primary && result.primary.name) {
+    state.primaryWeaponName = result.primary.name;
+  }
 
   if (result.secondary && result.secondary.foundStats) {
     if (result.secondary.isEmpty) {
@@ -562,6 +617,10 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
       document.getElementById("singleWeapon").checked = false;
       updated = true;
     }
+  }
+  if (result.secondary) {
+    if (result.secondary.isEmpty) state.secondaryWeaponName = "Empty";
+    else if (result.secondary.name) state.secondaryWeaponName = result.secondary.name;
   }
 
   if (!silent) {
@@ -582,6 +641,7 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
   if (!updated && !silent) statusEl.textContent = "No weapon stats updated";
   if (updated) {
     updateWeaponStats();
+    updateOverlayState();
     saveSettings();
     if (!silent) statusEl.textContent = "Inventory weapon stats loaded";
   }
@@ -640,6 +700,7 @@ if (window.agroApi.onRequestLoadInventory) {
 
 loadSettings();
 updateFightReset();
+updateWeaponStats();
 updateFluxStats();
 updateProcStats();
 updateFightResetCountdown();
@@ -664,6 +725,17 @@ updateFightResetCountdown();
     el.addEventListener("input", saveSettings);
   }
 );
+
+["primaryDmg", "primaryDelay", "primaryType", "secondaryDmg", "secondaryDelay", "secondaryType", "singleWeapon"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const refreshWeaponLabels = () => {
+    updateWeaponStats();
+    updateOverlayState();
+  };
+  el.addEventListener("change", refreshWeaponLabels);
+  el.addEventListener("input", refreshWeaponLabels);
+});
 
 const overlayToggle = document.getElementById("overlayEnabled");
 if (overlayToggle) {

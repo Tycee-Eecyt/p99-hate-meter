@@ -169,3 +169,17 @@ body {
   line-height: 1;
 }
 
+.overlay-weapons {
+  padding: clamp(6px, 1.1vh, 9px);
+}
+
+.overlay-weapon-line {
+  margin-top: 3px;
+  font-size: clamp(9px, 1.7vh, 12px);
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

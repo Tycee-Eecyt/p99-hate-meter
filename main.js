@@ -10,7 +10,19 @@ let isQuitting = false;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
-let lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+let lastOverlayState = {
+  mobName: "",
+  hate: 0,
+  damage: 0,
+  fluxCount: 0,
+  fluxHate: 0,
+  procCount: 0,
+  procHate: 0,
+  primaryWeapon: "Primary: Unknown",
+  secondaryWeapon: "Secondary: Unknown",
+  resetCountdown: 0,
+  resetAtMs: 0,
+};
 const itemStatsCache = new Map();
 
 function showMainWindow() {
@@ -23,18 +35,28 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+function buildTrayIcon() {
+  const iconPath = path.join(__dirname, "assets", "tray-icon.png");
+  const fromFile = nativeImage.createFromPath(iconPath);
+  if (!fromFile.isEmpty()) return fromFile.resize({ width: 16, height: 16 });
+
+  const fallbackSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <path d="M14 50L50 14" stroke="#ececef" stroke-width="7" stroke-linecap="round"/>
+      <path d="M14 14L50 50" stroke="#ececef" stroke-width="7" stroke-linecap="round"/>
+      <rect x="9" y="47" width="12" height="6" rx="2" fill="#d4a440"/>
+      <rect x="43" y="47" width="12" height="6" rx="2" fill="#d4a440"/>
+      <rect x="9" y="11" width="12" height="6" rx="2" fill="#d4a440"/>
+      <rect x="43" y="11" width="12" height="6" rx="2" fill="#d4a440"/>
+    </svg>
+  `;
+  return nativeImage.createFromDataURL(`data:image/svg+xml,${encodeURIComponent(fallbackSvg)}`).resize({ width: 16, height: 16 });
+}
+
 function createTray() {
   if (tray) return;
 
-  const traySvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-      <rect x="8" y="8" width="48" height="48" rx="10" fill="#111111"/>
-      <path d="M20 44V20h12c8 0 12 4 12 10 0 6-4 10-12 10h-4v4h-8zm8-10h4c3 0 5-1 5-4s-2-4-5-4h-4v8z" fill="#00d084"/>
-    </svg>
-  `;
-  const trayIcon = nativeImage
-    .createFromDataURL(`data:image/svg+xml,${encodeURIComponent(traySvg)}`)
-    .resize({ width: 16, height: 16 });
+  const trayIcon = buildTrayIcon();
 
   tray = new Tray(trayIcon);
   tray.setToolTip("P99 Hate Meter");
@@ -392,6 +414,9 @@ async function buildWeaponStatsFromInventory(logFilePath) {
 function startTail(filePath, fromStart, onLine) {
   let position = 0;
   let buffer = "";
+  let readInProgress = false;
+  let pendingRead = false;
+  let closed = false;
   if (!fromStart) {
     try {
       position = fs.statSync(filePath).size;
@@ -401,6 +426,12 @@ function startTail(filePath, fromStart, onLine) {
   }
 
   function readNew() {
+    if (closed) return;
+    if (readInProgress) {
+      pendingRead = true;
+      return;
+    }
+
     let stats;
     try {
       stats = fs.statSync(filePath);
@@ -410,9 +441,11 @@ function startTail(filePath, fromStart, onLine) {
     if (stats.size < position) position = 0;
     if (stats.size === position) return;
 
+    readInProgress = true;
+    const endPosition = stats.size;
     const stream = fs.createReadStream(filePath, {
       start: position,
-      end: stats.size - 1,
+      end: endPosition - 1,
       encoding: "latin1",
     });
 
@@ -424,14 +457,30 @@ function startTail(filePath, fromStart, onLine) {
     });
 
     stream.on("end", () => {
-      position = stats.size;
+      position = endPosition;
+      readInProgress = false;
+      if (pendingRead) {
+        pendingRead = false;
+        readNew();
+      }
+    });
+
+    stream.on("error", () => {
+      readInProgress = false;
+      if (pendingRead) {
+        pendingRead = false;
+        readNew();
+      }
     });
   }
 
   const watcher = fs.watch(filePath, { persistent: true }, () => readNew());
   readNew();
 
-  return () => watcher.close();
+  return () => {
+    closed = true;
+    watcher.close();
+  };
 }
 
 ipcMain.handle("pick-log-file", async () => {
@@ -515,6 +564,8 @@ ipcMain.on("overlay-state", (_evt, state) => {
       fluxHate: state.fluxHate || 0,
       procCount: state.procCount || 0,
       procHate: state.procHate || 0,
+      primaryWeapon: state.primaryWeapon || "Primary: Unknown",
+      secondaryWeapon: state.secondaryWeapon || "Secondary: Unknown",
       resetCountdown: state.resetCountdown || 0,
       resetAtMs: state.resetAtMs || 0,
     };
@@ -525,7 +576,19 @@ ipcMain.on("overlay-state", (_evt, state) => {
 
 ipcMain.on("request-reset-hate", () => {
   if (mainWindow) mainWindow.webContents.send("reset-hate");
-  lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
+  lastOverlayState = {
+    mobName: "",
+    hate: 0,
+    damage: 0,
+    fluxCount: 0,
+    fluxHate: 0,
+    procCount: 0,
+    procHate: 0,
+    primaryWeapon: lastOverlayState.primaryWeapon || "Primary: Unknown",
+    secondaryWeapon: lastOverlayState.secondaryWeapon || "Secondary: Unknown",
+    resetCountdown: 0,
+    resetAtMs: 0,
+  };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });

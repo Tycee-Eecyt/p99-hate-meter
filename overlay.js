@@ -6,6 +6,8 @@ const overlayDamage = document.getElementById("overlayDamage");
 const overlayProcCount = document.getElementById("overlayProcCount");
 const overlayProcHate = document.getElementById("overlayProcHate");
 const overlayResetCountdown = document.getElementById("overlayResetCountdown");
+const overlayPrimaryWeapon = document.getElementById("overlayPrimaryWeapon");
+const overlaySecondaryWeapon = document.getElementById("overlaySecondaryWeapon");
 let overlayResetAtMs = 0;
 
 function renderOverlayCountdown() {
@@ -28,6 +30,8 @@ if (window.agroApi && window.agroApi.onOverlayState) {
     overlayFluxHate.textContent = String(state.fluxHate || 0);
     overlayProcCount.textContent = String(state.procCount || 0);
     overlayProcHate.textContent = String(state.procHate || 0);
+    overlayPrimaryWeapon.textContent = String(state.primaryWeapon || "Primary: Unknown");
+    overlaySecondaryWeapon.textContent = String(state.secondaryWeapon || "Secondary: Unknown");
     overlayResetAtMs = Number(state.resetAtMs || 0);
     if (!overlayResetAtMs) {
       const fallbackRemaining = Number(state.resetCountdown || 0);

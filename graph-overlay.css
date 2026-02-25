@@ -68,8 +68,20 @@ body {
 
 .metric {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
+}
+
+.metric-lines {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .dot {
