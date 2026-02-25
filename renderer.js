@@ -296,6 +296,15 @@ function getSkillHateInfo(text) {
   return null;
 }
 
+function inferAttackTypeFromName(name) {
+  const lower = String(name || "").toLowerCase();
+  if (!lower) return "";
+  if (/\b(blade|sword|scimitar|axe|machete|katana|claymore)\b/.test(lower)) return "slash";
+  if (/\b(dagger|spear|pike|rapier|stiletto|lance|trident)\b/.test(lower)) return "pierce";
+  if (/\b(hammer|mace|club|maul|staff|cudgel|fist|wraps)\b/.test(lower)) return "crush";
+  return "";
+}
+
 function updateOverlayState() {
   if (!window.agroApi || !window.agroApi.setOverlayState) return;
   const mobName = state.activeMobName || "";
@@ -602,6 +611,15 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
     document.getElementById("primaryDelay").value = String(result.primary.delay);
     updated = true;
   }
+  const primaryDetectedType = result.primary?.attackType || inferAttackTypeFromName(result.primary?.name);
+  if (primaryDetectedType) {
+    const prevPrimaryType = document.getElementById("primaryType").value;
+    document.getElementById("primaryType").value = primaryDetectedType;
+    if (!silent && prevPrimaryType !== primaryDetectedType) {
+      addLine(`[AUTO] Primary type set to ${primaryDetectedType} from weapon detection`, "spell");
+    }
+    updated = true;
+  }
   if (result.primary && result.primary.name) {
     state.primaryWeaponName = result.primary.name;
   }
@@ -617,6 +635,15 @@ async function loadWeaponStatsFromInventory(logFilePath, { silent = false } = {}
       document.getElementById("singleWeapon").checked = false;
       updated = true;
     }
+  }
+  const secondaryDetectedType = result.secondary?.attackType || inferAttackTypeFromName(result.secondary?.name);
+  if (secondaryDetectedType && !result.secondary?.isEmpty) {
+    const prevSecondaryType = document.getElementById("secondaryType").value;
+    document.getElementById("secondaryType").value = secondaryDetectedType;
+    if (!silent && prevSecondaryType !== secondaryDetectedType) {
+      addLine(`[AUTO] Secondary type set to ${secondaryDetectedType} from weapon detection`, "spell");
+    }
+    updated = true;
   }
   if (result.secondary) {
     if (result.secondary.isEmpty) state.secondaryWeaponName = "Empty";

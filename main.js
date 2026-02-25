@@ -10,6 +10,8 @@ let isQuitting = false;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
+let overlayEnabled = false;
+let graphOverlayEnabled = false;
 let lastOverlayState = {
   mobName: "",
   hate: 0,
@@ -35,6 +37,26 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+function setOverlayEnabled(enabled) {
+  overlayEnabled = !!enabled;
+  if (overlayEnabled) {
+    if (!overlayWindow) createOverlayWindow();
+    if (overlayWindow) overlayWindow.show();
+  } else if (overlayWindow) {
+    overlayWindow.hide();
+  }
+}
+
+function setGraphOverlayEnabled(enabled) {
+  graphOverlayEnabled = !!enabled;
+  if (graphOverlayEnabled) {
+    if (!graphOverlayWindow) createGraphOverlayWindow();
+    if (graphOverlayWindow) graphOverlayWindow.show();
+  } else if (graphOverlayWindow) {
+    graphOverlayWindow.hide();
+  }
+}
+
 function buildTrayIcon() {
   const iconPath = path.join(__dirname, "assets", "tray-icon.png");
   const fromFile = nativeImage.createFromPath(iconPath);
@@ -53,16 +75,31 @@ function buildTrayIcon() {
   return nativeImage.createFromDataURL(`data:image/svg+xml,${encodeURIComponent(fallbackSvg)}`).resize({ width: 16, height: 16 });
 }
 
-function createTray() {
-  if (tray) return;
-
-  const trayIcon = buildTrayIcon();
-
-  tray = new Tray(trayIcon);
-  tray.setToolTip("P99 Hate Meter");
+function refreshTrayMenu() {
+  if (!tray) return;
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show", click: () => showMainWindow() },
+      { label: "Show App", click: () => showMainWindow() },
+      { type: "separator" },
+      {
+        label: "Overlay",
+        type: "checkbox",
+        checked: overlayEnabled,
+        click: (menuItem) => {
+          setOverlayEnabled(menuItem.checked);
+          refreshTrayMenu();
+        },
+      },
+      {
+        label: "Graph Overlay",
+        type: "checkbox",
+        checked: graphOverlayEnabled,
+        click: (menuItem) => {
+          setGraphOverlayEnabled(menuItem.checked);
+          refreshTrayMenu();
+        },
+      },
+      { type: "separator" },
       {
         label: "Quit",
         click: () => {
@@ -72,6 +109,16 @@ function createTray() {
       },
     ])
   );
+}
+
+function createTray() {
+  if (tray) return;
+
+  const trayIcon = buildTrayIcon();
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip("P99 Hate Meter");
+  refreshTrayMenu();
   tray.on("click", () => showMainWindow());
 }
 
@@ -340,8 +387,18 @@ async function fetchItemStatsFromWiki(itemName) {
   const html = await fetchText(url);
   const delayMatch = html.match(/Atk Delay:\s*(\d+)/i);
   const dmgMatch = html.match(/\bDMG:\s*(\d+)/i);
+  const skillMatch = html.match(/\b(1H Slashing|2H Slashing|1H Piercing|2H Piercing|1H Blunt|2H Blunt|Hand to Hand)\b/i);
 
-  const stats = delayMatch && dmgMatch ? { damage: Number(dmgMatch[1]), delay: Number(delayMatch[1]), sourceUrl: url } : null;
+  let attackType = "";
+  if (skillMatch) {
+    const skill = skillMatch[1].toLowerCase();
+    if (skill.includes("slashing")) attackType = "slash";
+    else if (skill.includes("piercing")) attackType = "pierce";
+    else if (skill.includes("blunt")) attackType = "crush";
+    else if (skill.includes("hand to hand")) attackType = "punch";
+  }
+
+  const stats = delayMatch && dmgMatch ? { damage: Number(dmgMatch[1]), delay: Number(delayMatch[1]), attackType, sourceUrl: url } : null;
   itemStatsCache.set(cacheKey, stats);
   return stats;
 }
@@ -392,10 +449,18 @@ async function buildWeaponStatsFromInventory(logFilePath) {
     }
     try {
       const stats = await fetchItemStatsFromWiki(slotData.name);
-      if (!stats) return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
-      return { ...slotData, isEmpty: false, foundStats: true, damage: stats.damage, delay: stats.delay, sourceUrl: stats.sourceUrl };
+      if (!stats) return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0, attackType: "" };
+      return {
+        ...slotData,
+        isEmpty: false,
+        foundStats: true,
+        damage: stats.damage,
+        delay: stats.delay,
+        attackType: stats.attackType || "",
+        sourceUrl: stats.sourceUrl,
+      };
     } catch {
-      return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0 };
+      return { ...slotData, isEmpty: false, foundStats: false, damage: 0, delay: 0, attackType: "" };
     }
   }
 
@@ -535,22 +600,14 @@ ipcMain.handle("stop-tail", () => {
 });
 
 ipcMain.handle("toggle-overlay", (_evt, enabled) => {
-  if (enabled) {
-    if (!overlayWindow) createOverlayWindow();
-    if (overlayWindow) overlayWindow.show();
-  } else if (overlayWindow) {
-    overlayWindow.hide();
-  }
+  setOverlayEnabled(enabled);
+  refreshTrayMenu();
   return true;
 });
 
 ipcMain.handle("toggle-graph-overlay", (_evt, enabled) => {
-  if (enabled) {
-    if (!graphOverlayWindow) createGraphOverlayWindow();
-    if (graphOverlayWindow) graphOverlayWindow.show();
-  } else if (graphOverlayWindow) {
-    graphOverlayWindow.hide();
-  }
+  setGraphOverlayEnabled(enabled);
+  refreshTrayMenu();
   return true;
 });
 
