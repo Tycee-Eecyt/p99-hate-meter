@@ -7,91 +7,77 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app">
-      <header class="header">
-        <div class="title">
-          <div class="logo">AGRO</div>
-          <div>
-            <h1>P99 Aggro Log Reader</h1>
-            <p>Flux staff clicks + weapon swings (hits/misses)</p>
+    <div class="bg-orb bg-orb-a"></div>
+    <div class="bg-orb bg-orb-b"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app-shell">
+      <header class="topbar panel">
+        <div class="brand">
+          <div class="brand-mark">P99</div>
+          <div class="brand-copy">
+            <h1>Hate Meter</h1>
+            <p>Live threat telemetry for warrior melee, procs, and flux events.</p>
           </div>
         </div>
-        <div class="header-stats">
-          <div class="pair-stats">
-            <div class="pair-grid">
-              <div class="pair-cell">
-                <div class="total-label">Warrior Hate</div>
-                <div class="total-value" id="totalHate">0</div>
-              </div>
-              <div class="pair-cell">
-                <div class="total-label">Wizard Hate</div>
-                <div class="total-value" id="fluxHate">0</div>
-              </div>
-            </div>
+        <div class="status-row">
+          <div class="status-pill">
+            <span class="pill-label">Status</span>
+            <span class="pill-value" id="status">Idle</span>
           </div>
-          <div class="pair-stats">
-            <div class="pair-grid">
-              <div class="pair-cell">
-                <div class="total-label">Warrior Procs</div>
-                <div class="total-value" id="procCount">0</div>
-                <div class="flux-hate">Proc Hate: <span id="procHate">0</span></div>
-              </div>
-              <div class="pair-cell">
-                <div class="total-label">Flux Triggers</div>
-                <div class="total-value" id="fluxCount">0</div>
-              </div>
-            </div>
-          </div>
-          <div class="flux-stats">
-            <div class="total-label">Fight Reset Countdown</div>
-            <div class="total-value total-value-small" id="fightResetCountdown">Ready</div>
-            <div class="flux-hate">Resets after inactivity</div>
+          <div class="status-pill">
+            <span class="pill-label">Fight Reset</span>
+            <span class="pill-value" id="fightResetCountdown">Ready</span>
           </div>
         </div>
       </header>
 
-      <section class="controls">
-        <div class="field">
-          <label>Log File</label>
-          <input id="logFile" type="text" placeholder="Select a log file" />
-          <button id="pickFile">Browse</button>
-          <button id="loadInventory">Load Inventory</button>
-        </div>
-        <div class="field">
-          <label>Level</label>
-          <input id="level" type="number" value="60" min="1" max="60" />
-          <label>Fight Reset (sec)</label>
-          <input id="fightResetSeconds" type="number" value="30" min="5" />
-          <label>Primary DMG</label>
-          <input id="primaryDmg" type="number" value="14" min="1" />
-          <label>Primary Delay</label>
-          <input id="primaryDelay" type="number" value="24" min="1" />
-          <label>Primary Type</label>
-          <select id="primaryType">
-            <option value="slash">Slashing</option>
-            <option value="pierce">Piercing</option>
-            <option value="crush">Crushing</option>
-            <option value="punch">Punching</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Secondary DMG</label>
-          <input id="secondaryDmg" type="number" value="11" min="1" />
-          <label>Secondary Delay</label>
-          <input id="secondaryDelay" type="number" value="18" min="1" />
-          <label>Secondary Type</label>
-          <select id="secondaryType">
-            <option value="slash">Slashing</option>
-            <option value="pierce" selected>Piercing</option>
-            <option value="crush">Crushing</option>
-            <option value="punch">Punching</option>
-          </select>
+      <section class="kpi-grid">
+        <article class="kpi-card panel">
+          <div class="kpi-label">Warrior Hate</div>
+          <div class="kpi-value" id="totalHate">0</div>
+        </article>
+        <article class="kpi-card panel">
+          <div class="kpi-label">Wizard Hate</div>
+          <div class="kpi-value" id="fluxHate">0</div>
+          <div class="kpi-meta">Flux Triggers: <span id="fluxCount">0</span></div>
+        </article>
+        <article class="kpi-card panel">
+          <div class="kpi-label">Warrior Procs</div>
+          <div class="kpi-value" id="procCount">0</div>
+          <div class="kpi-meta">Proc Hate: <span id="procHate">0</span></div>
+        </article>
+      </section>
+
+      <section class="control-grid">
+        <article class="panel control-panel control-panel-wide">
+          <div class="panel-title">Log Source</div>
+          <div class="field-row">
+            <label for="logFile">Log File</label>
+            <input id="logFile" type="text" placeholder="Select a log file" />
+          </div>
+          <div class="action-row">
+            <button id="pickFile">Browse</button>
+            <button id="loadInventory">Load Inventory</button>
+            <button id="start">Start</button>
+            <button id="stop">Stop</button>
+          </div>
+        </article>
+
+        <article class="panel control-panel">
+          <div class="panel-title">Combat Settings</div>
+          <div class="field-row two-col">
+            <label for="level">Level</label>
+            <input id="level" type="number" value="60" min="1" max="60" />
+          </div>
+          <div class="field-row two-col">
+            <label for="fightResetSeconds">Fight Reset (sec)</label>
+            <input id="fightResetSeconds" type="number" value="30" min="5" />
+          </div>
           <label class="checkbox">
             <input id="singleWeapon" type="checkbox" />
             Single Weapon Only
           </label>
-        </div>
-        <div class="field">
           <label class="checkbox">
             <input id="overlayEnabled" type="checkbox" />
             Overlay
@@ -100,25 +86,67 @@
             <input id="graphOverlayEnabled" type="checkbox" />
             Graph Overlay
           </label>
-          <button id="start">Start</button>
-          <button id="stop">Stop</button>
-        </div>
+        </article>
+
+        <article class="panel control-panel">
+          <div class="panel-title">Primary Hand</div>
+          <div class="field-row two-col">
+            <label for="primaryDmg">Damage</label>
+            <input id="primaryDmg" type="number" value="14" min="1" />
+          </div>
+          <div class="field-row two-col">
+            <label for="primaryDelay">Delay</label>
+            <input id="primaryDelay" type="number" value="24" min="1" />
+          </div>
+          <div class="field-row two-col">
+            <label for="primaryType">Type</label>
+            <select id="primaryType">
+              <option value="slash">Slashing</option>
+              <option value="pierce">Piercing</option>
+              <option value="crush">Crushing</option>
+              <option value="punch">Punching</option>
+            </select>
+          </div>
+        </article>
+
+        <article class="panel control-panel">
+          <div class="panel-title">Secondary Hand</div>
+          <div class="field-row two-col">
+            <label for="secondaryDmg">Damage</label>
+            <input id="secondaryDmg" type="number" value="11" min="1" />
+          </div>
+          <div class="field-row two-col">
+            <label for="secondaryDelay">Delay</label>
+            <input id="secondaryDelay" type="number" value="18" min="1" />
+          </div>
+          <div class="field-row two-col">
+            <label for="secondaryType">Type</label>
+            <select id="secondaryType">
+              <option value="slash">Slashing</option>
+              <option value="pierce" selected>Piercing</option>
+              <option value="crush">Crushing</option>
+              <option value="punch">Punching</option>
+            </select>
+          </div>
+        </article>
       </section>
 
-      <section class="log">
-        <div class="log-header">
-          <div>Live Events</div>
-          <div id="status">Idle</div>
-        </div>
-        <div class="log-body" id="logBody"></div>
-      </section>
+      <section class="data-grid">
+        <article class="panel log-panel">
+          <div class="panel-header">
+            <div class="panel-title">Live Events</div>
+            <div class="panel-note">Combat stream</div>
+          </div>
+          <div class="log-body" id="logBody"></div>
+        </article>
 
-      <section class="mob-hate">
-        <div class="mob-hate-header">
-          <div>Mob Hate</div>
-          <div class="mob-hate-note">Resets after inactive timer</div>
-        </div>
-        <div class="mob-hate-list" id="mobHateList"></div>
+        <article class="panel mobs-panel">
+          <div class="panel-header">
+            <div class="panel-title">Mob Hate</div>
+            <div class="panel-note">Resets after inactivity</div>
+          </div>
+          <div class="mob-hate-list" id="mobHateList"></div>
+        </article>
       </section>
     </div>
 

@@ -11,9 +11,17 @@ const MELEE_HIT_RE = /\bYou (slash|pierce|crush|punch) (.+?) for (\d+) points of
 const MELEE_MISS_RE = /\bYou try to (slash|pierce|crush|punch) (.+?), but .+?[.!]?\s*$/i;
 const MELEE_MISS_SHORT_RE = /\bYou miss\b/i;
 const RIPOSTE_PARRY_RE = /\bYou (riposte|parry)\b/i;
+const KICK_HIT_RE = /\bYou kick (.+?) for \d+ points of damage\./i;
+const KICK_MISS_RE = /\bYou try to kick (.+?), but .+?[.!]?\s*$/i;
+const BASH_HIT_RE = /\bYou bash (.+?) for \d+ points of damage\./i;
+const BASH_MISS_RE = /\bYou try to bash (.+?), but .+?[.!]?\s*$/i;
+const DISARM_HIT_RE = /\bYou disarmed (.+?)!/i;
+const DISARM_MISS_RE = /\bYour attempt to disarm failed\./i;
 const TIMESTAMP_RE = /^\[(.+?)\]\s+/;
 const FLUX_LOOKS_UNCOMFORTABLE_RE = /\blooks uncomfortable\.\s*$/i;
 const RAGE_OF_VALLON_RE = /^(.+?) is weakened by the Rage of Vallon\.\s*$/i;
+const MAIN_HAND_HATE_BONUS = 11;
+const OFF_HAND_HATE_BONUS = 12;
 
 function parseLogTimestamp(line) {
   const match = line.match(TIMESTAMP_RE);
@@ -22,28 +30,6 @@ function parseLogTimestamp(line) {
   const ts = new Date(raw);
   if (Number.isNaN(ts.getTime())) return { ts: null, text: line };
   return { ts, text: line.slice(match[0].length) };
-}
-
-function damageBonusForLevel(level) {
-  if (level < 28) return 0;
-  const table = [
-    [28, 1],
-    [31, 2],
-    [34, 3],
-    [37, 4],
-    [40, 5],
-    [43, 6],
-    [46, 7],
-    [49, 8],
-    [52, 9],
-    [55, 10],
-    [58, 11],
-  ];
-  let bonus = 0;
-  for (const [lvl, val] of table) {
-    if (level >= lvl) bonus = val;
-  }
-  return bonus;
 }
 
 class SwingHandTracker {
@@ -229,7 +215,6 @@ function rageOfVallonMobName(text) {
 }
 
 function updateWeaponStats() {
-  const level = Number(document.getElementById("level").value);
   updateFightReset();
   const primaryDmg = Number(document.getElementById("primaryDmg").value);
   const secondaryDmg = Number(document.getElementById("secondaryDmg").value);
@@ -237,9 +222,8 @@ function updateWeaponStats() {
   const secondaryDelay = Number(document.getElementById("secondaryDelay").value) / 10;
   state.primaryType = document.getElementById("primaryType").value;
   state.secondaryType = document.getElementById("secondaryType").value;
-  const bonus = damageBonusForLevel(level);
-  state.primaryHate = primaryDmg + bonus;
-  state.secondaryHate = secondaryDmg + bonus;
+  state.primaryHate = primaryDmg + MAIN_HAND_HATE_BONUS;
+  state.secondaryHate = secondaryDmg + OFF_HAND_HATE_BONUS;
   state.handTracker = new SwingHandTracker(primaryDelay, secondaryDelay);
 }
 
@@ -260,6 +244,21 @@ function getAttackInfo(text) {
   match = text.match(MELEE_MISS_RE);
   if (match) return { type: match[1].toLowerCase(), mobName: normalizeMobName(match[2]), damage: 0 };
   return { type: "", mobName: "", damage: 0 };
+}
+
+function getSkillHateInfo(text) {
+  let match = text.match(KICK_HIT_RE);
+  if (match) return { mobName: normalizeMobName(match[1]), hate: 5 };
+  match = text.match(KICK_MISS_RE);
+  if (match) return { mobName: normalizeMobName(match[1]), hate: 5 };
+  match = text.match(BASH_HIT_RE);
+  if (match) return { mobName: normalizeMobName(match[1]), hate: 7 };
+  match = text.match(BASH_MISS_RE);
+  if (match) return { mobName: normalizeMobName(match[1]), hate: 7 };
+  match = text.match(DISARM_HIT_RE);
+  if (match) return { mobName: normalizeMobName(match[1]), hate: 20 };
+  if (DISARM_MISS_RE.test(text)) return { mobName: state.activeMobName || "", hate: 20 };
+  return null;
 }
 
 function updateOverlayState() {
@@ -390,21 +389,22 @@ function handleLine(rawLine) {
 
   const rageMobName = rageOfVallonMobName(text);
   if (rageMobName || RAGE_OF_VALLON_RE.test(text)) {
-    const rageHate = 500;
-    const rageSpellDamageHate = 100;
-    const totalRageHate = rageHate + rageSpellDamageHate;
+    const totalRageHate = 600;
     const mobName = rageMobName || state.activeMobName;
     state.procCount += 1;
     state.procHate += totalRageHate;
     const entry = getMobEntry(mobName, ts);
     if (entry) {
+      entry.hate += totalRageHate;
       state.activeMobName = mobName;
     }
+    state.warriorHate += totalRageHate;
     markCombatActivity(ts);
+    updateTotal();
     updateProcStats();
     renderMobList();
     updateOverlayState();
-    addLine(`[PROC] ${text} -> +${totalRageHate} hate (Rage of Vallon: 500 hate + 100 spell damage)`, "spell");
+    addLine(`[PROC] ${text} -> +${totalRageHate} hate (Rage of Vallon)`, "spell");
     return;
   }
 
@@ -502,6 +502,22 @@ function handleLine(rawLine) {
     addLine(`[SWING] ${hand} (${attackType || "unknown"}) -> +${hate} hate`, "swing");
     renderMobList();
     updateOverlayState();
+  }
+
+  const skillInfo = getSkillHateInfo(text);
+  if (skillInfo) {
+    const mobName = skillInfo.mobName || state.activeMobName;
+    const entry = getMobEntry(mobName, ts);
+    state.warriorHate += skillInfo.hate;
+    if (entry) {
+      entry.hate += skillInfo.hate;
+      state.activeMobName = mobName;
+    }
+    markCombatActivity(ts);
+    updateTotal();
+    renderMobList();
+    updateOverlayState();
+    addLine(`[SKILL] ${text} -> +${skillInfo.hate} hate`, "swing");
   }
 }
 

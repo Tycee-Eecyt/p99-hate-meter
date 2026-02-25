@@ -1,15 +1,57 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage } = require("electron");
 const fs = require("fs");
 const https = require("https");
 const os = require("os");
 const path = require("path");
 
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
 let lastOverlayState = { mobName: "", hate: 0, damage: 0, fluxCount: 0, fluxHate: 0, procCount: 0, procHate: 0, resetCountdown: 0, resetAtMs: 0 };
 const itemStatsCache = new Map();
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  if (tray) return;
+
+  const traySvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect x="8" y="8" width="48" height="48" rx="10" fill="#111111"/>
+      <path d="M20 44V20h12c8 0 12 4 12 10 0 6-4 10-12 10h-4v4h-8zm8-10h4c3 0 5-1 5-4s-2-4-5-4h-4v8z" fill="#00d084"/>
+    </svg>
+  `;
+  const trayIcon = nativeImage
+    .createFromDataURL(`data:image/svg+xml,${encodeURIComponent(traySvg)}`)
+    .resize({ width: 16, height: 16 });
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip("P99 Hate Meter");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show", click: () => showMainWindow() },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ])
+  );
+  tray.on("click", () => showMainWindow());
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,6 +64,14 @@ function createWindow() {
   });
 
   mainWindow.loadFile("index.html");
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    mainWindow.hide();
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
 function createOverlayWindow() {
@@ -84,14 +134,25 @@ function createGraphOverlayWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  createTray();
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
+});
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin" && isQuitting) app.quit();
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (mainWindow) {
+    showMainWindow();
+    return;
+  }
+  createWindow();
 });
 
 function findLatestLog(logDir) {
