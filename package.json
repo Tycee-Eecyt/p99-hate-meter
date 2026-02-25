@@ -1,5 +1,5 @@
 {
-  "name": "p99-agro-meter",
+  "name": "p99 hate meter",
   "version": "0.1.0",
   "description": "EQ log aggro reader (Electron)",
   "main": "main.js",
