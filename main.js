@@ -26,6 +26,61 @@ let lastOverlayState = {
   resetAtMs: 0,
 };
 const itemStatsCache = new Map();
+const persistedItemStatsCache = new Map();
+let persistedCacheLoaded = false;
+
+function getWeaponDbPath() {
+  return path.join(app.getPath("userData"), "weapon-db.json");
+}
+
+function normalizePersistedStats(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const damage = Number(raw.damage);
+  const delay = Number(raw.delay);
+  if (!Number.isFinite(damage) || !Number.isFinite(delay)) return null;
+  const attackType = ["slash", "pierce", "crush", "punch"].includes(raw.attackType) ? raw.attackType : "";
+  const sourceUrl = typeof raw.sourceUrl === "string" ? raw.sourceUrl : "";
+  return { damage, delay, attackType, sourceUrl };
+}
+
+function loadPersistedWeaponDb() {
+  if (persistedCacheLoaded) return;
+  persistedCacheLoaded = true;
+  try {
+    const dbPath = getWeaponDbPath();
+    if (!fs.existsSync(dbPath)) return;
+    const raw = fs.readFileSync(dbPath, "utf8");
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const [itemName, entry] of Object.entries(parsed)) {
+      const normalized = normalizePersistedStats(entry);
+      if (!normalized) continue;
+      const key = itemName.toLowerCase();
+      persistedItemStatsCache.set(key, normalized);
+      if (!itemStatsCache.has(key)) itemStatsCache.set(key, normalized);
+    }
+  } catch {
+    // Ignore unreadable/corrupt cache file.
+  }
+}
+
+function savePersistedWeaponDb() {
+  try {
+    const dbPath = getWeaponDbPath();
+    const parentDir = path.dirname(dbPath);
+    fs.mkdirSync(parentDir, { recursive: true });
+    const sorted = {};
+    for (const key of Array.from(persistedItemStatsCache.keys()).sort()) {
+      sorted[key] = persistedItemStatsCache.get(key);
+    }
+    const tempPath = `${dbPath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(sorted, null, 2), "utf8");
+    fs.renameSync(tempPath, dbPath);
+  } catch {
+    // Ignore write failures.
+  }
+}
 
 function showMainWindow() {
   if (!mainWindow) {
@@ -378,9 +433,15 @@ function fetchText(url, redirectCount = 0) {
 }
 
 async function fetchItemStatsFromWiki(itemName) {
+  loadPersistedWeaponDb();
   const cacheKey = (itemName || "").toLowerCase();
   if (!cacheKey) return null;
   if (itemStatsCache.has(cacheKey)) return itemStatsCache.get(cacheKey);
+  if (persistedItemStatsCache.has(cacheKey)) {
+    const cached = persistedItemStatsCache.get(cacheKey);
+    itemStatsCache.set(cacheKey, cached);
+    return cached;
+  }
 
   const slug = encodeURIComponent(itemName.replace(/\s+/g, "_"));
   const url = `https://wiki.project1999.com/${slug}`;
@@ -400,6 +461,10 @@ async function fetchItemStatsFromWiki(itemName) {
 
   const stats = delayMatch && dmgMatch ? { damage: Number(dmgMatch[1]), delay: Number(delayMatch[1]), attackType, sourceUrl: url } : null;
   itemStatsCache.set(cacheKey, stats);
+  if (stats) {
+    persistedItemStatsCache.set(cacheKey, stats);
+    savePersistedWeaponDb();
+  }
   return stats;
 }
 

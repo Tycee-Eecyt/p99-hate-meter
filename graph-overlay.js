@@ -3,6 +3,8 @@ const warriorEl = document.getElementById("graphWarrior");
 const wizardEl = document.getElementById("graphWizard");
 const warriorTpmEl = document.getElementById("graphWarriorTpm");
 const wizardTpmEl = document.getElementById("graphWizardTpm");
+const warriorFluxPerMinEl = document.getElementById("graphWarriorFluxPerMin");
+const wizardFluxPerMinEl = document.getElementById("graphWizardFluxPerMin");
 const intersectionInfoEl = document.getElementById("intersectionInfo");
 const graphResetBtn = document.getElementById("graphResetBtn");
 const graphLoadInventoryBtn = document.getElementById("graphLoadInventoryBtn");
@@ -225,6 +227,8 @@ function appendPoint(state) {
   const rates = getCurrentRates(nowMs);
   warriorTpmEl.textContent = String(Math.round(rates.warriorPerMinute));
   wizardTpmEl.textContent = String(Math.round(rates.wizardPerMinute));
+  warriorFluxPerMinEl.textContent = (rates.warriorPerMinute / 50).toFixed(1);
+  wizardFluxPerMinEl.textContent = (rates.wizardPerMinute / 50).toFixed(1);
 }
 
 if (window.agroApi && window.agroApi.onOverlayState) {

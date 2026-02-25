@@ -131,7 +131,7 @@ body {
 
 .overlay-metrics-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(6px, 1.2vh, 10px);
 }
 
@@ -181,5 +181,11 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 290px) {
+  .overlay-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
