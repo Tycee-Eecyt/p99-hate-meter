@@ -34,47 +34,6 @@ function parseLogTimestamp(line) {
   return { ts, text: line.slice(match[0].length) };
 }
 
-class SwingHandTracker {
-  constructor(primaryDelay, secondaryDelay) {
-    this.primaryDelay = primaryDelay;
-    this.secondaryDelay = secondaryDelay;
-    this.nextPrimary = null;
-    this.nextSecondary = null;
-    this.lastHand = "secondary";
-  }
-
-  recordHand(hand, ts) {
-    this.lastHand = hand;
-    if (!ts) return;
-    if (hand === "primary") {
-      this.nextPrimary = new Date(ts.getTime() + this.primaryDelay * 1000);
-      if (!this.nextSecondary) this.nextSecondary = ts;
-      return;
-    }
-    this.nextSecondary = new Date(ts.getTime() + this.secondaryDelay * 1000);
-    if (!this.nextPrimary) this.nextPrimary = ts;
-  }
-
-  pickHand(ts) {
-    if (!ts) {
-      this.lastHand = this.lastHand === "secondary" ? "primary" : "secondary";
-      return this.lastHand;
-    }
-
-    if (!this.nextPrimary) this.nextPrimary = ts;
-    if (!this.nextSecondary) this.nextSecondary = ts;
-
-    if (this.nextPrimary <= this.nextSecondary) {
-      const hand = "primary";
-      this.nextPrimary = new Date(ts.getTime() + this.primaryDelay * 1000);
-      return hand;
-    }
-    const hand = "secondary";
-    this.nextSecondary = new Date(ts.getTime() + this.secondaryDelay * 1000);
-    return hand;
-  }
-}
-
 const state = {
   warriorHate: 0,
   warriorDamage: 0,
@@ -90,7 +49,6 @@ const state = {
   secondaryWeaponName: "",
   primaryWeaponLabel: "Primary: Unknown",
   secondaryWeaponLabel: "Secondary: Unknown",
-  handTracker: new SwingHandTracker(2.4, 1.8),
   mobs: new Map(),
   activeMobName: "",
   fightResetSeconds: 30,
@@ -123,6 +81,7 @@ function readFormSettings() {
     singleWeapon: document.getElementById("singleWeapon").checked,
     overlayEnabled: document.getElementById("overlayEnabled").checked,
     graphOverlayEnabled: document.getElementById("graphOverlayEnabled").checked,
+    compactOverlayEnabled: document.getElementById("compactOverlayEnabled").checked,
   };
 }
 
@@ -140,6 +99,7 @@ function applyFormSettings(settings) {
   if (settings.singleWeapon !== undefined) document.getElementById("singleWeapon").checked = !!settings.singleWeapon;
   if (settings.overlayEnabled !== undefined) document.getElementById("overlayEnabled").checked = !!settings.overlayEnabled;
   if (settings.graphOverlayEnabled !== undefined) document.getElementById("graphOverlayEnabled").checked = !!settings.graphOverlayEnabled;
+  if (settings.compactOverlayEnabled !== undefined) document.getElementById("compactOverlayEnabled").checked = !!settings.compactOverlayEnabled;
 }
 
 function loadSettings() {
@@ -252,13 +212,10 @@ function updateWeaponStats() {
   updateFightReset();
   const primaryDmg = Number(document.getElementById("primaryDmg").value);
   const secondaryDmg = Number(document.getElementById("secondaryDmg").value);
-  const primaryDelay = Number(document.getElementById("primaryDelay").value) / 10;
-  const secondaryDelay = Number(document.getElementById("secondaryDelay").value) / 10;
   state.primaryType = document.getElementById("primaryType").value;
   state.secondaryType = document.getElementById("secondaryType").value;
   state.primaryHate = primaryDmg + MAIN_HAND_HATE_BONUS;
   state.secondaryHate = secondaryDmg + OFF_HAND_HATE_BONUS;
-  state.handTracker = new SwingHandTracker(primaryDelay, secondaryDelay);
   updateEquippedWeaponLabels();
 }
 
@@ -303,6 +260,12 @@ function inferAttackTypeFromName(name) {
   if (/\b(dagger|spear|pike|rapier|stiletto|lance|trident)\b/.test(lower)) return "pierce";
   if (/\b(hammer|mace|club|maul|staff|cudgel|fist|wraps)\b/.test(lower)) return "crush";
   return "";
+}
+
+function getSwingHateValue() {
+  const singleWeapon = document.getElementById("singleWeapon").checked;
+  if (singleWeapon) return state.primaryHate;
+  return Math.round((state.primaryHate + state.secondaryHate) / 2);
 }
 
 function updateOverlayState() {
@@ -476,83 +439,15 @@ function handleLine(rawLine) {
   if (RIPOSTE_PARRY_RE.test(text)) return;
 
   if (MELEE_HIT_RE.test(text) || MELEE_MISS_RE.test(text) || MELEE_MISS_SHORT_RE.test(text)) {
-    const singleWeapon = document.getElementById("singleWeapon").checked;
     const info = getAttackInfo(text);
-    const attackType = info.type;
     const hitDamage = info.damage || 0;
     if (hitDamage > 0) {
       state.warriorDamage += hitDamage;
     }
     let mobName = info.mobName;
     if (!mobName && state.activeMobName) mobName = state.activeMobName;
-    const isUnknownMiss = !attackType && MELEE_MISS_SHORT_RE.test(text);
     const entry = getMobEntry(mobName, ts);
-    if (singleWeapon) {
-      if (attackType && attackType !== state.primaryType) return;
-      state.warriorHate += state.primaryHate;
-      if (entry) {
-        entry.hate += state.primaryHate;
-        state.activeMobName = mobName;
-      }
-      markCombatActivity(ts);
-      updateTotal();
-      state.handTracker.recordHand("primary", ts);
-      addLine(`[SWING] primary (${attackType || "unknown"}) -> +${state.primaryHate} hate`, "swing");
-      renderMobList();
-      updateOverlayState();
-      return;
-    }
-
-    if (isUnknownMiss) {
-      const hand = state.handTracker.pickHand(ts);
-      const hate = hand === "primary" ? state.primaryHate : state.secondaryHate;
-      state.warriorHate += hate;
-      if (entry) {
-        entry.hate += hate;
-        state.activeMobName = mobName;
-      }
-      markCombatActivity(ts);
-      updateTotal();
-      addLine(`[SWING] ${hand} (unknown) -> +${hate} hate`, "swing");
-      renderMobList();
-      updateOverlayState();
-      return;
-    }
-
-    const primaryMatches = !attackType || attackType === state.primaryType;
-    const secondaryMatches = !attackType || attackType === state.secondaryType;
-
-    if (primaryMatches && !secondaryMatches) {
-      state.warriorHate += state.primaryHate;
-      if (entry) {
-        entry.hate += state.primaryHate;
-        state.activeMobName = mobName;
-      }
-      markCombatActivity(ts);
-      updateTotal();
-      state.handTracker.recordHand("primary", ts);
-      addLine(`[SWING] primary (${attackType || "unknown"}) -> +${state.primaryHate} hate`, "swing");
-      renderMobList();
-      updateOverlayState();
-      return;
-    }
-    if (secondaryMatches && !primaryMatches) {
-      state.warriorHate += state.secondaryHate;
-      if (entry) {
-        entry.hate += state.secondaryHate;
-        state.activeMobName = mobName;
-      }
-      markCombatActivity(ts);
-      updateTotal();
-      state.handTracker.recordHand("secondary", ts);
-      addLine(`[SWING] secondary (${attackType || "unknown"}) -> +${state.secondaryHate} hate`, "swing");
-      renderMobList();
-      updateOverlayState();
-      return;
-    }
-
-    const hand = state.handTracker.pickHand(ts);
-    const hate = hand === "primary" ? state.primaryHate : state.secondaryHate;
+    const hate = getSwingHateValue();
     state.warriorHate += hate;
     if (entry) {
       entry.hate += hate;
@@ -560,7 +455,7 @@ function handleLine(rawLine) {
     }
     markCombatActivity(ts);
     updateTotal();
-    addLine(`[SWING] ${hand} (${attackType || "unknown"}) -> +${hate} hate`, "swing");
+    addLine(`[SWING] ${info.type || "unknown"} -> +${hate} hate`, "swing");
     renderMobList();
     updateOverlayState();
   }
@@ -744,6 +639,7 @@ updateFightResetCountdown();
   "singleWeapon",
   "overlayEnabled",
   "graphOverlayEnabled",
+  "compactOverlayEnabled",
 ].forEach(
   (id) => {
     const el = document.getElementById(id);
@@ -780,6 +676,15 @@ if (graphOverlayToggle) {
   };
   syncGraphOverlay(graphOverlayToggle.checked);
   graphOverlayToggle.addEventListener("change", () => syncGraphOverlay(graphOverlayToggle.checked));
+}
+
+const compactOverlayToggle = document.getElementById("compactOverlayEnabled");
+if (compactOverlayToggle) {
+  const syncCompactOverlay = (enabled) => {
+    if (window.agroApi && window.agroApi.toggleCompactOverlay) window.agroApi.toggleCompactOverlay(enabled);
+  };
+  syncCompactOverlay(compactOverlayToggle.checked);
+  compactOverlayToggle.addEventListener("change", () => syncCompactOverlay(compactOverlayToggle.checked));
 }
 
 const fightResetInput = document.getElementById("fightResetSeconds");
