@@ -2,21 +2,7 @@
 
 Electron UI that tracks aggro from:
 - Flux staff clicks (50 hate each).
-- Melee swings (hit or miss) using a simplified formula.
-
-## Aggro Formula (Simplified)
-- Primary swing hate: `primary DMG + 11`
-- Secondary swing hate: `secondary DMG + 12`
-- Single Weapon mode: every melee swing adds `primary swing hate`
-- Dual Wield mode: every melee swing adds `round((primary swing hate + secondary swing hate) / 2)`
-- Flux click (`"looks uncomfortable"`): `+50 hate`
-- Rage of Vallon proc: `+600 hate`
-- Skills:
-  - Kick: `+5 hate`
-  - Bash: `+7 hate`
-  - Disarm: `+20 hate`
-
-Total aggro is the running sum of all events above.
+- Melee swings (hit or miss) using weapon damage + damage bonus.
 
 ## Setup
 ```bash
