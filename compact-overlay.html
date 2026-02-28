@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P99 Ultra Compact Overlay</title>
+    <link rel="stylesheet" href="compact-overlay.css" />
+  </head>
+  <body>
+    <div class="compact-overlay">
+      <div class="row top">
+        <div class="title">Hate + Graph</div>
+        <div class="target" id="compactTarget">No Target</div>
+      </div>
+
+      <div class="row stats">
+        <div class="stat warrior">
+          <div class="label">Warrior</div>
+          <div class="value" id="compactWarrior">0</div>
+          <div class="sub">TPM <span id="compactWarriorTpm">0</span> | Flux/min <span id="compactWarriorFluxMin">0.0</span></div>
+        </div>
+        <div class="stat wizard">
+          <div class="label">Wizard</div>
+          <div class="value" id="compactWizard">0</div>
+          <div class="sub">TPM <span id="compactWizardTpm">0</span> | Flux/min <span id="compactWizardFluxMin">0.0</span></div>
+        </div>
+      </div>
+
+      <canvas id="compactGraph"></canvas>
+    </div>
+
+    <script src="compact-overlay.js"></script>
+  </body>
+</html>

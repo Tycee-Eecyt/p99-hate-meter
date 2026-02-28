@@ -10,8 +10,10 @@ let isQuitting = false;
 let stopTailFn = null;
 let overlayWindow = null;
 let graphOverlayWindow = null;
+let compactOverlayWindow = null;
 let overlayEnabled = false;
 let graphOverlayEnabled = false;
+let compactOverlayEnabled = false;
 let lastOverlayState = {
   mobName: "",
   hate: 0,
@@ -112,6 +114,16 @@ function setGraphOverlayEnabled(enabled) {
   }
 }
 
+function setCompactOverlayEnabled(enabled) {
+  compactOverlayEnabled = !!enabled;
+  if (compactOverlayEnabled) {
+    if (!compactOverlayWindow) createCompactOverlayWindow();
+    if (compactOverlayWindow) compactOverlayWindow.show();
+  } else if (compactOverlayWindow) {
+    compactOverlayWindow.hide();
+  }
+}
+
 function buildTrayIcon() {
   const iconPath = path.join(__dirname, "assets", "tray-icon.png");
   const fromFile = nativeImage.createFromPath(iconPath);
@@ -151,6 +163,15 @@ function refreshTrayMenu() {
         checked: graphOverlayEnabled,
         click: (menuItem) => {
           setGraphOverlayEnabled(menuItem.checked);
+          refreshTrayMenu();
+        },
+      },
+      {
+        label: "Ultra Compact Overlay",
+        type: "checkbox",
+        checked: compactOverlayEnabled,
+        click: (menuItem) => {
+          setCompactOverlayEnabled(menuItem.checked);
           refreshTrayMenu();
         },
       },
@@ -255,6 +276,37 @@ function createGraphOverlayWindow() {
   });
   graphOverlayWindow.once("ready-to-show", () => {
     if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
+  });
+}
+
+function createCompactOverlayWindow() {
+  compactOverlayWindow = new BrowserWindow({
+    width: 380,
+    height: 190,
+    x: 820,
+    y: 20,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: true,
+    movable: true,
+    minWidth: 300,
+    minHeight: 140,
+    skipTaskbar: true,
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+
+  compactOverlayWindow.setAlwaysOnTop(true, "screen-saver");
+  compactOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  compactOverlayWindow.loadFile("compact-overlay.html");
+  compactOverlayWindow.on("closed", () => {
+    compactOverlayWindow = null;
+  });
+  compactOverlayWindow.once("ready-to-show", () => {
+    if (compactOverlayWindow) compactOverlayWindow.webContents.send("overlay-state", lastOverlayState);
   });
 }
 
@@ -676,6 +728,12 @@ ipcMain.handle("toggle-graph-overlay", (_evt, enabled) => {
   return true;
 });
 
+ipcMain.handle("toggle-compact-overlay", (_evt, enabled) => {
+  setCompactOverlayEnabled(enabled);
+  refreshTrayMenu();
+  return true;
+});
+
 ipcMain.on("overlay-state", (_evt, state) => {
   if (state && typeof state === "object") {
     lastOverlayState = {
@@ -694,6 +752,7 @@ ipcMain.on("overlay-state", (_evt, state) => {
   }
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
+  if (compactOverlayWindow) compactOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });
 
 ipcMain.on("request-reset-hate", () => {
@@ -713,6 +772,7 @@ ipcMain.on("request-reset-hate", () => {
   };
   if (overlayWindow) overlayWindow.webContents.send("overlay-state", lastOverlayState);
   if (graphOverlayWindow) graphOverlayWindow.webContents.send("overlay-state", lastOverlayState);
+  if (compactOverlayWindow) compactOverlayWindow.webContents.send("overlay-state", lastOverlayState);
 });
 
 ipcMain.on("request-load-inventory", () => {
